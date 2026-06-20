@@ -52,9 +52,10 @@ async function sendProposalEmail(
       return;
     }
 
-    const approveUrl = `${baseUrl}/api/admin/service-proposals/${id}/quick-action?token=${encodeURIComponent(token)}&action=approve`;
-    const rejectUrl  = `${baseUrl}/api/admin/service-proposals/${id}/quick-action?token=${encodeURIComponent(token)}&action=reject`;
-    const dashUrl    = `${baseUrl}/admin`;
+    const approveUrl   = `${baseUrl}/api/admin/service-proposals/${id}/quick-action?token=${encodeURIComponent(token)}&action=approve`;
+    const implementUrl = `${baseUrl}/api/admin/service-proposals/${id}/quick-action?token=${encodeURIComponent(token)}&action=implement`;
+    const rejectUrl    = `${baseUrl}/api/admin/service-proposals/${id}/quick-action?token=${encodeURIComponent(token)}&action=reject`;
+    const dashUrl      = `${baseUrl}/admin`;
 
     const priorityColor = priority >= 8 ? "#dc2626" : priority >= 5 ? "#d97706" : "#16a34a";
     const priorityLabel = priority >= 8 ? "🔴 High" : priority >= 5 ? "🟡 Medium" : "🟢 Low";
@@ -84,14 +85,24 @@ async function sendProposalEmail(
       <p style="font-size:14px;color:#374151;margin:0;line-height:1.6">${rationale.replace(/\n/g, "<br>")}</p>
     </div>
 
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:12px">
+      <tr>
+        <td style="padding-right:5px">
+          <a href="${implementUrl}" style="display:block;background:#7c3aed;color:#fff;text-align:center;padding:14px 8px;border-radius:8px;font-size:14px;font-weight:700;text-decoration:none">🚀 Approve + Build</a>
+        </td>
+        <td style="padding:0 3px">
+          <a href="${approveUrl}" style="display:block;background:#16a34a;color:#fff;text-align:center;padding:14px 8px;border-radius:8px;font-size:14px;font-weight:700;text-decoration:none">✅ Approve only</a>
+        </td>
+        <td style="padding-left:5px">
+          <a href="${rejectUrl}" style="display:block;background:#dc2626;color:#fff;text-align:center;padding:14px 8px;border-radius:8px;font-size:14px;font-weight:700;text-decoration:none">❌ Reject</a>
+        </td>
+      </tr>
+    </table>
     <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:20px">
       <tr>
-        <td width="48%" style="padding-right:8px">
-          <a href="${approveUrl}" style="display:block;background:#16a34a;color:#fff;text-align:center;padding:14px;border-radius:8px;font-size:15px;font-weight:700;text-decoration:none">✅ Approve</a>
-        </td>
-        <td width="48%" style="padding-left:8px">
-          <a href="${rejectUrl}" style="display:block;background:#dc2626;color:#fff;text-align:center;padding:14px;border-radius:8px;font-size:15px;font-weight:700;text-decoration:none">❌ Reject</a>
-        </td>
+        <td style="padding-right:5px;font-size:10px;color:#6b7280;text-align:center">AI writes full service + auto-deploys</td>
+        <td style="padding:0 3px;font-size:10px;color:#6b7280;text-align:center">Writes stub only — build later</td>
+        <td style="padding-left:5px;font-size:10px;color:#6b7280;text-align:center"></td>
       </tr>
     </table>
 
@@ -101,7 +112,9 @@ async function sendProposalEmail(
 
     <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0 16px">
     <p style="font-size:11px;color:#9ca3af;margin:0;line-height:1.5">
-      These links are single-use and will expire once clicked.<br>
+      All links are single-use.<br>
+      <strong>Approve + Build</strong>: AI generates the full implementation and registers it — activates on next restart.<br>
+      <strong>Approve only</strong>: writes a scaffold stub for you to implement manually.<br>
       Proposal #${id} · Generated ${new Date().toUTCString()}
     </p>
   </div>

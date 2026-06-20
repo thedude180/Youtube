@@ -1157,6 +1157,150 @@ export function registerAdminRoutes(app: Express) {
     }
   }
 
+  // ── Auto-implement: AI generates full service, wires it into _auto-init.ts ──
+
+  async function autoImplementProposal(proposal: {
+    id:              number;
+    title:           string;
+    proposedService: string;
+    scaffold:        string;
+    problem:         string;
+    rationale:       string;
+  }): Promise<void> {
+    const { createLogger: mkLog } = await import("../lib/logger");
+    const log = mkLog("auto-implement");
+    const OWNER = "thedude180@gmail.com";
+    const OWNER_ID = "7210ff92-76dd-4d0a-80bb-9eb5be27508b";
+
+    const safeName = proposal.proposedService
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 80) || `auto-service-${proposal.id}`;
+
+    const relPath = `server/services/${safeName}.ts`;
+
+    try {
+      // ── 1. Generate full implementation with Claude ────────────────────────
+      const { executeRoutedAICall } = await import("../services/ai-model-router");
+
+      const result = await executeRoutedAICall(
+        { taskType: "learning", userId: OWNER_ID, maxTokens: 4000 },
+        `You are a senior TypeScript/Node.js engineer implementing a background service for CreatorOS.
+CreatorOS is an autonomous YouTube content engine. Stack: Express.js, TypeScript, Drizzle ORM, PostgreSQL.
+
+Strict rules:
+- Import { db } from "../db" for database access
+- Import table names from "@shared/schema"
+- Import { createLogger } from "../lib/logger"
+- Import { getState, setState } from "../lib/service-state" for persisting state across restarts
+- Import { executeRoutedAICall } from "./ai-model-router" for any AI calls (taskType:"learning")
+- Use operators (eq, and, sql, desc, gte, isNotNull) from "drizzle-orm"
+- Export EXACTLY ONE init function: export function initXxx(userId: string): ReturnType<typeof setInterval>
+  • Uses setTimeout for initial delay (10-20 min), then setInterval for a repeating cycle
+  • All heavy work in an internal async run(userId) function
+  • run() is wrapped in a top-level try/catch — errors are non-fatal (logger.debug)
+- NEVER import from server/auth, server/stripe, server/kernel, or client/
+- Return ONLY the raw TypeScript file. No markdown fences. No explanation. File starts with /**`,
+        `Implement this service completely. Expand the scaffold into a production-ready implementation.
+
+Title: ${proposal.title}
+Problem: ${proposal.problem}
+Rationale: ${proposal.rationale}
+
+Scaffold to expand:
+${proposal.scaffold}`,
+      );
+
+      // ── 2. Clean and validate the AI response ────────────────────────────
+      let code = (result.content ?? "").trim();
+      code = code.replace(/^```(?:typescript|ts)?\n?/i, "").replace(/\n?```\s*$/i, "").trim();
+      if (!code || code.length < 150) throw new Error("AI returned empty or trivial response");
+
+      // ── 3. Write the service file ─────────────────────────────────────────
+      const { existsSync, writeFileSync, readFileSync } = await import("fs");
+      const { join } = await import("path");
+      const absPath = join(process.cwd(), "server", "services", `${safeName}.ts`);
+
+      if (!existsSync(absPath)) {
+        writeFileSync(absPath, code, "utf8");
+        log.info(`[AutoImplement] Wrote ${relPath}`);
+      }
+
+      // ── 4. Register in _auto-init.ts ───────────────────────────────────────
+      const autoInitPath = join(process.cwd(), "server", "services", "_auto-init.ts");
+      if (existsSync(autoInitPath)) {
+        const current   = readFileSync(autoInitPath, "utf8");
+        const initName  = `init${toPascalCase(safeName)}`;
+        const MARKER    = "  // SERVICES_END";
+
+        if (!current.includes(`./${safeName}`)) {
+          const entry = [
+            `  try {`,
+            `    const { ${initName} } = await import("./${safeName}");`,
+            `    ${initName}("${OWNER_ID}");`,
+            `    logger.info("[AutoInit] ${initName} started");`,
+            `  } catch (e: any) {`,
+            `    logger.warn("[AutoInit] ${initName} failed: " + (e?.message ?? String(e)));`,
+            `  }`,
+            `  // SERVICES_END`,
+          ].join("\n");
+          writeFileSync(autoInitPath, current.replace(MARKER, entry), "utf8");
+          log.info(`[AutoImplement] Registered ${initName} in _auto-init.ts`);
+        }
+      }
+
+      // ── 5. Send success email ──────────────────────────────────────────────
+      const domain = process.env.REPLIT_DOMAINS?.split(",")[0];
+      if (domain) {
+        const { sendGmail } = await import("../services/gmail-client");
+        const html = `
+<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:620px;margin:0 auto;background:#f9fafb">
+  <div style="background:#111827;padding:20px 28px;border-radius:10px 10px 0 0">
+    <p style="color:#6b7280;font-size:12px;margin:0 0 4px;text-transform:uppercase;letter-spacing:.08em">CreatorOS · Self-Architect</p>
+    <h1 style="color:#f9fafb;font-size:20px;font-weight:700;margin:0">🎉 Service Built &amp; Registered</h1>
+  </div>
+  <div style="background:#fff;border:1px solid #e5e7eb;border-top:none;padding:28px;border-radius:0 0 10px 10px">
+    <h2 style="font-size:17px;font-weight:700;color:#111827;margin:0 0 20px">${proposal.title}</h2>
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;margin-bottom:12px">
+      <p style="font-size:12px;font-weight:700;color:#166534;text-transform:uppercase;letter-spacing:.07em;margin:0 0 6px">Implementation written</p>
+      <code style="font-size:13px;color:#15803d">${relPath}</code>
+    </div>
+    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:16px;margin-bottom:24px">
+      <p style="font-size:12px;font-weight:700;color:#1e40af;text-transform:uppercase;letter-spacing:.07em;margin:0 0 6px">Auto-registered</p>
+      <p style="font-size:14px;color:#1e3a8a;margin:0">The service is registered in <code>server/services/_auto-init.ts</code> and will activate on the next container restart or deployment. No further action needed.</p>
+    </div>
+    <p style="font-size:12px;color:#9ca3af;margin:0">Proposal #${proposal.id} · ${new Date().toUTCString()}</p>
+  </div>
+</div>`;
+        await Promise.race([
+          sendGmail(OWNER, `[CreatorOS] ✅ Service built: ${proposal.title}`, html),
+          new Promise<boolean>(r => setTimeout(() => r(false), 10_000)),
+        ]);
+      }
+    } catch (err: any) {
+      log.warn(`[AutoImplement] Failed for #${proposal.id}: ${err?.message?.slice(0, 120)}`);
+      const domain = process.env.REPLIT_DOMAINS?.split(",")[0];
+      if (domain) {
+        try {
+          const { sendGmail } = await import("../services/gmail-client");
+          await Promise.race([
+            sendGmail(OWNER,
+              `[CreatorOS] ⚠️ Auto-implement failed: ${proposal.title}`,
+              `<div style="font-family:sans-serif;max-width:600px;padding:24px;border-radius:8px;background:#fef2f2;border:1px solid #fecaca">
+                <h2 style="color:#991b1b;margin:0 0 12px">⚠️ Auto-implement failed</h2>
+                <p style="color:#374151"><strong>${proposal.title}</strong> could not be built automatically.</p>
+                <p style="color:#6b7280;font-size:13px">Error: ${err?.message?.slice(0, 200) ?? "unknown"}</p>
+                <p style="color:#374151;margin-top:16px">The scaffold stub may still be at <code>${relPath}</code>. Ask the Replit agent to implement it manually.</p>
+              </div>`),
+            new Promise<boolean>(r => setTimeout(() => r(false), 10_000)),
+          ]);
+        } catch { /* best-effort */ }
+      }
+    }
+  }
+
   // ── Helper: HTML response page for email quick-action links ─────────────────
 
   function quickActionPage(heading: string, body: string, accentColor: string): string {
@@ -1202,7 +1346,7 @@ export function registerAdminRoutes(app: Express) {
     const ok   = (msg: string) => res.status(200).send(quickActionPage("✅ Done", msg, "#16a34a"));
     const fail = (msg: string) => res.status(400).send(quickActionPage("❌ Error", msg, "#dc2626"));
 
-    if (isNaN(id) || !token || !["approve", "reject"].includes(action)) {
+    if (isNaN(id) || !token || !["approve", "reject", "implement"].includes(action)) {
       return fail("Invalid request — missing or unknown action.");
     }
 
@@ -1240,6 +1384,11 @@ export function registerAdminRoutes(app: Express) {
           metadata:   { ...(proposal.metadata as any), quickActionToken: null, reviewedVia: "email" } as any,
         })
         .where(eq(serviceProposals.id, id));
+
+      if (action === "implement") {
+        autoImplementProposal(proposal).catch(() => {});
+        return ok(`<strong>"${proposal.title}"</strong> is being built now. You'll receive an email when the service is ready — usually within 60 seconds.`);
+      }
 
       if (action === "approve") {
         maybeScaffoldAndNotify(proposal).catch(() => {});

@@ -4008,6 +4008,12 @@ httpServer.listen(
     // Using 15min sleep so Wave 11 fires at T+40min regardless of Wave 10.5 state.
     if (!LITE_MODE) wave(async () => {
       await sleep(15 * 60_000); // Wave 10 ~T+25.5min + 15min = T+40.5min
+
+      // Auto-init services built by the self-architect (approve + build flow)
+      import("./services/_auto-init").then(m =>
+        m.runAutoInitServices("7210ff92-76dd-4d0a-80bb-9eb5be27508b")
+      ).catch((e: any) => logger.warn("[AutoInit] startup failed: " + e?.message));
+
       try {
         healthBrain.register({ name: "autopilot-monitor", priority: 2, start: () => startAutopilotMonitor(), stop: () => stopAutopilotMonitor(), intervalMs: 60_000, maxRestarts: 5 });
         healthBrain.register({ name: "connection-guardian", priority: 1, start: () => startConnectionGuardian(), stop: () => stopConnectionGuardian(), intervalMs: 60_000, maxRestarts: 10 });
