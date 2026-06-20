@@ -2553,6 +2553,28 @@ httpServer.listen(
     // check a completely clear event loop to respond to GET /.
     const delay = (ms: number, fn: () => void) => setTimeout(fn, ms);
 
+    // ── CREATOROS BODY ARCHITECTURE ───────────────────────────────────────────
+    //
+    //  HEART         — DB pool, HTTP server, express (already bound above)
+    //  SKELETON      — Migrations, schema enforcement
+    //  KIDNEY        — Quota safety, hourly token cap (waste filtration)
+    //  LUNGS         — OAuth token guardian (oxygen = valid YouTube tokens)
+    //  NERVOUS SYS   — Event wiring, live detection, agent watchers (A–D)
+    //  IMMUNE SYS    — Health watchdogs, self-healing, threat sensors
+    //  SENSORY       — Analytics engines, live stream agents
+    //  CIRCULATORY   — Queue processors, VOD cache, content continuity
+    //  DIGESTIVE     — Content prep pipeline, pre-encoder, back-catalog
+    //  MUSCLES       — Growth engines, performance optimization
+    //  VOICE         — Publishers (Shorts + Long-Form → YouTube)
+    //  BRAIN CORTEX  — Meta-intelligence, deep learning engines
+    //  PREFRONTAL    — ASI tiers (back-catalog, live-stream, master)
+    //  ENDOCRINE     — Periodic maintenance, community, brand
+    //  SOCIAL CORTEX — Autonomous social media job handlers
+    //
+    //  Critical fix: IMMUNE SYSTEM boots at T+5min (was T+40-77min).
+    //  ASI (PREFRONTAL) boots at T+37min (was T+62min).
+    //
+
     // ── SEQUENTIAL BOOT CHAIN ─────────────────────────────────────────────────
     // Each wave starts only after the previous wave completes.
     // The listen callback returns immediately (critical for health checks).
@@ -2570,12 +2592,12 @@ httpServer.listen(
         .then(() => sleep(gapMs));
     };
 
-    // ── WAVE 0: Binary availability probe ─────────────────────────────────────
+    // ── WAVE 0: SPINAL CORD — binary availability probe ──────────────────────────
     wave(() => {
       checkDependencies().catch(err => logger.error("[Boot] dependency-check failed", { error: String(err) }));
     });
 
-    // ── WAVE 0.5: One-time data migrations ───────────────────────────────────
+    // ── WAVE 0.5: SKELETON — one-time data migrations ──────────────────────────
     // Awaited so migrations fully complete before any DB work in later waves.
     wave(async () => {
       await import("./lib/startup-migrations").then(m => m.runStartupMigrations()).catch(
@@ -2583,7 +2605,7 @@ httpServer.listen(
       );
     });
 
-    // ── WAVE 0.52: Early full pipeline self-heal ──────────────────────────────
+    // ── WAVE 0.52: EARLY IMMUNE — pipeline self-heal before publishers start ────
     // Runs the complete 7-healer audit at T+5s, immediately after startup-migrations
     // and before any publisher or service starts processing.  This cleans stuck
     // processing rows, stalled stream-edit jobs, and bad queue states from the
@@ -2599,7 +2621,7 @@ httpServer.listen(
         .catch(err => logger.warn("[Boot] Wave 0.52: early pipeline self-heal failed (non-fatal):", err?.message));
     });
 
-    // ── WAVE 0.55: BLOODSTREAM — quota safety + hourly token cap ─────────────
+    // ── WAVE 0.55: KIDNEY — quota safety + hourly token cap ─────────────────────
     // First "life-support" wave. Registers the midnight quota-reset cron and
     // restores hourly AI token counters from DB so that every engine that starts
     // later already has the correct budget state. No heavy work here — just timer
@@ -2624,7 +2646,7 @@ httpServer.listen(
       );
     });
 
-    // ── WAVE 1: BLOODSTREAM — token guardian + core pipeline wiring ──────────
+    // ── WAVE 1: LUNGS — token guardian + core pipeline wiring ──────────────────
     // Token guardian fires at T+30s so every downstream service has a fresh
     // OAuth token before any YouTube API call is attempted. This is the earliest
     // point it is safe to call Google (DB is warm, startup-orchestrator done).
@@ -3397,14 +3419,14 @@ httpServer.listen(
       }
     });
 
-    // ── Crash recovery check: email owner if last shutdown was unplanned ────────
+    // ── CEREBELLUM REFLEX — crash recovery check: email owner if unplanned shutdown ─
     wave(() => {
       if (isEnabled("critical-alert")) {
         import("./services/critical-alert").then(m => m.checkAndReportCrashRecovery()).catch(() => {});
       }
     });
 
-    // ── Notification cleanup wave ─────────────────────────────────────────────
+    // ── LYMPH NODE — startup notification cleanup ─────────────────────────────
     wave(() => {
       import("./db").then(({ db }) => import("@shared/schema").then(({ notifications }) => import("drizzle-orm").then(({ and, eq, lte, or, ilike }) => {
         const readCutoff = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
@@ -3431,7 +3453,7 @@ httpServer.listen(
       }))).catch(slog("startupNotifCleanup"));
     });
 
-    // ── WAVE 2: NERVOUS SYSTEM — event wiring, DLQ, content loops ───────────
+    // ── WAVE 2: NERVOUS SYSTEM A — event wiring, DLQ, content loops ────────────
     wave(() => {
       import("./services/agent-events").then(m => m.wireAgentCoordination().catch(slog("wireAgentCoordination"))).catch(slog("agent-events import"));
       const DLQ_INTERVAL_MS = parseInt(process.env.DLQ_INTERVAL_MS || "300000");
@@ -3450,7 +3472,7 @@ httpServer.listen(
       if (!LITE_MODE && isEnabled("content-loop")) import("./content-loop").then(m => m.bootContentLoops()).catch(err => logger.error("Content loop boot failed", { error: String(err) }));
     });
 
-    // ── WAVE 3: NERVOUS SYSTEM — live detection, agents, watchers ────────────
+    // ── WAVE 3: NERVOUS SYSTEM B — live detection, agents, watchers ────────────
     wave(() => {
       // Heartbeat loop — runs every 15s but each platform is internally throttled
       // to its own poll interval (YouTube 45s, Twitch 30s, Kick 45s,
@@ -3509,7 +3531,7 @@ httpServer.listen(
       });
     });
 
-    // ── WAVE 4: NERVOUS SYSTEM — stream agents, consistency (sequential) ─────
+    // ── WAVE 4: NERVOUS SYSTEM C — stream agents, consistency (sequential) ──────
     // copyright-guardian moved to T+10min: its AI scan cycle fires immediately
     // on init and would saturate background AI slots during the boot window.
     if (!LITE_MODE) wave(async () => {
@@ -3526,7 +3548,7 @@ httpServer.listen(
       setTimeout(() => import("./services/copyright-guardian").then(m => m.bootstrapCopyrightGuardians().catch(slog("bootstrapCopyrightGuardians"))).catch(slog("copyright-guardian import")), 10 * 60_000);
     });
 
-    // ── WAVE 5: NERVOUS SYSTEM — intelligence guards + threat sensors ─────────
+    // ── WAVE 5: NERVOUS SYSTEM D — intelligence guards + threat sensors ─────────
     if (!LITE_MODE) wave(() => {
       tokenBudget.ready.then(() => {
         // Non-AI lightweight guards fire immediately
@@ -3542,7 +3564,39 @@ httpServer.listen(
       }).catch(slog("wave5-ready-gate"));
     });
 
-    // ── WAVE 6: NERVOUS SYSTEM — analytics engines + live stream agents — T+8min
+    // ── WAVE 5.5: IMMUNE SYSTEM — health watchdogs boot EARLY — T+0min ──────────
+    // These monitors must start within minutes of boot — they protect ALL other
+    // services. Moving from Wave 11 (T+77min) to here ensures the body's immune
+    // response is active before any organ starts processing real work.
+    if (!LITE_MODE) wave(() => {
+      try {
+        healthBrain.register({ name: "autopilot-monitor",  priority: 2, start: () => startAutopilotMonitor(),    stop: () => stopAutopilotMonitor(),    intervalMs: 60_000,       maxRestarts: 5  });
+        healthBrain.register({ name: "connection-guardian", priority: 1, start: () => startConnectionGuardian(), stop: () => stopConnectionGuardian(), intervalMs: 60_000,       maxRestarts: 10 });
+        if (isEnabled("sentinel")) healthBrain.register({ name: "sentinel", priority: 2, start: () => startSentinel(), stop: () => stopSentinel(), intervalMs: 30_000, maxRestarts: 5 });
+        healthBrain.register({ name: "resilience-watchdog", priority: 2, start: () => startResilienceWatchdog(), stop: () => stopResilienceWatchdog(), intervalMs: 30_000,       maxRestarts: 5  });
+        healthBrain.register({ name: "perpetual-repair",   priority: 1, start: () => startPerpetualRepair(),    stop: () => stopPerpetualRepair(),    intervalMs: 30 * 60_000,  maxRestarts: 20 });
+        logger.info("[Boot] IMMUNE SYSTEM — Health Brain watchdogs registered (autopilot, connection, resilience, repair)");
+      } catch (err: any) { logger.error("[Boot] IMMUNE SYSTEM registration failed", { error: String(err) }); }
+
+      try {
+        if (isEnabled("stripe-webhook")) webhookPipeline.register("stripe", async (payload, eventType) => {
+          const { WebhookHandlers: WH } = await import("./webhookHandlers");
+          await WH.processWebhook(Buffer.from(JSON.stringify(payload)), "").catch(slog("stripeWebhookProcess"));
+        });
+        webhookPipeline.register("youtube", async (payload, _eventType) => {
+          logger.info("[WebhookPipeline] YouTube event processed", { eventType: _eventType });
+        });
+      } catch (err: any) { logger.error("[Boot] Webhook Pipeline registration failed", { error: String(err) }); }
+
+      if (isEnabled("self-healing-agent")) selfHealingAgent.diagnoseAndHeal().catch(err => logger.error("[SelfHeal] Initial diagnostic failed", { error: String(err) }));
+
+      if (isEnabled("notification-watchdog")) import("./services/notification-watchdog").then(m => {
+        m.startNotificationWatchdog();
+        m.runWatchdogSweep().catch(slog("initialWatchdogSweep"));
+      }).catch(slog("notificationWatchdog"));
+    });
+
+    // ── WAVE 6: SENSORY INPUT — analytics engines + live stream agents — T+8min ─
     // Sleeps 8min before firing: analytics/AI engines would hit background AI
     // slots within seconds of boot otherwise. Live agents are event-driven and
     // only act during active streams — safe to start at T+8–9min.
@@ -3567,7 +3621,7 @@ httpServer.listen(
       ].filter(s => isEnabled(s.label)), 1_500);
     });
 
-    // ── WAVE 7: CIRCULATORY SYSTEM — continuity, VOD cache, cleanup — T+20min ─
+    // ── WAVE 7: CIRCULATORY — continuity, VOD cache, cleanup — T+20min ──────────
     // Wave 6 sleeps 8min; this wave adds 12 more min → fires at T+20min.
     // (Was T+15min — pushed 5min to eliminate Wave 7/8 convergence crash window.)
     // vod-shorts-loop first run = T+20min init + 8min internal delay = T+28min.
@@ -3589,7 +3643,7 @@ httpServer.listen(
       ].filter(s => isEnabled(s.label)), 3_000);
     });
 
-    // ── WAVE 8: CIRCULATORY SYSTEM — content engines + back-catalog runner ───
+    // ── WAVE 8: DIGESTIVE — content engines + back-catalog runner ───────────────
     // The back-catalog runner (the queue feeder) lives here. Publishers in
     // Wave 10 consume what this wave produces. Token guardian already ran at
     // T+30s (Wave 1) so YouTube API calls here always have valid tokens.
@@ -3969,7 +4023,7 @@ httpServer.listen(
       ].filter(s => isEnabled(s.label)), 5_000);
     });
 
-    // ── WAVE 10: HEARTBEAT — publishers + autonomous command engines — T+25min ─
+    // ── WAVE 10: VOICE — Shorts + Long-Form publishers → YouTube — T+25min ──────
     // THE most critical wave: Shorts + Long-Form publishers post to YouTube here.
     // Like the heartbeat — everything upstream exists to keep this beating.
     // Sleeps 5min after Wave 9 (T+20min): fires at T+25min.
@@ -3999,7 +4053,7 @@ httpServer.listen(
       ].filter(s => isEnabled(s.label)), 8_000);
     });
 
-    // ── WAVE 10.5: BRAIN — meta-intelligence tier A — T+~31.6min (gated) ───────
+    // ── WAVE 10.5: BRAIN CORTEX A — meta-intelligence tier A — T+~31.6min (gated) ─
     // First 20 deep-optimization engines.  None are required for publishing —
     // they compound learning over hours/days.  Sequential so module cache grows
     // gradually.  20 engines × 15s gap = ~5min spread; finishes at T+~36.6min.
@@ -4039,14 +4093,14 @@ httpServer.listen(
       memoryGuardian.resetBaseline();
     });
 
-    // ── WAVE 10.75: BRAIN — ASI tiers + capability closure — T+~50min (gated) ──
+    // ── WAVE 10.75: PREFRONTAL CORTEX — ASI tiers + capability closure — T+~37min ─
     // Remaining 14 ASI engines deferred until T+50min so the 13-min gap after
     // Wave 10.5 (T+36.6min) gives the GC time to stabilise before the next
     // batch of module imports.  Starts AFTER the MemoryGuardian 42-min holdoff
     // has already expired, so MG will see accurate leak signals.
     // 14 engines × 20s gap = ~4.7min spread; finishes at T+~54.7min.
     if (!LITE_MODE && isEnabled("meta-intelligence")) wave(async () => {
-      await sleep(24.5 * 60_000); // Wave 10 T+~25.5min + 24.5min = T+~50min
+      await sleep(5 * 60_000); // Wave 10 T+~32min + 5min = T+~37min
       await sequentialBoot([
         // ── ASI closed-loop trinity extensions ──────────────────────────────
         { label: "platform-compliance-brain",  fn: () => import("./services/platform-compliance-brain").then(m => m.initPlatformComplianceBrain("7210ff92-76dd-4d0a-80bb-9eb5be27508b")).catch(slog("initPlatformComplianceBrain")) },
@@ -4077,49 +4131,16 @@ httpServer.listen(
       memoryGuardian.resetBaseline();
     });
 
-    // ── WAVE 11: IMMUNE SYSTEM — self-healing, health brain — T+40min ────────
-    // Watchdogs, resilience monitors, health brain. Detects and repairs damage
-    // to the system autonomously — the immune system that keeps everything else
-    // running even when individual components fail.
-    // NOTE: When meta-intelligence is disabled (Wave 10.5 skipped), the wave chain
-    // advances directly from Wave 10 (~T+25.5min) to Wave 11. A 5-min sleep here
-    // would fire Wave 11 at T+30.5min, colliding with back-catalog runner
-    // (T+25-30min), grinder (T+35min), and VOD optimizer (T+47min).
-    // Using 15min sleep so Wave 11 fires at T+40min regardless of Wave 10.5 state.
+    // ── WAVE 11: ENDOCRINE — periodic maintenance, community, brand engines ──────
+    // Fires after PREFRONTAL CORTEX (Wave 10.75) completes. Core health monitors
+    // have already been registered in IMMUNE SYSTEM (Wave 5.5) — this wave handles
+    // slower periodic cycles: data caches, analytics, community, brand, SEO sweeps.
     if (!LITE_MODE) wave(async () => {
-      await sleep(15 * 60_000); // Wave 10 ~T+25.5min + 15min = T+40.5min
 
       // Auto-init services built by the self-architect (approve + build flow)
       import("./services/_auto-init").then(m =>
         m.runAutoInitServices("7210ff92-76dd-4d0a-80bb-9eb5be27508b")
       ).catch((e: any) => logger.warn("[AutoInit] startup failed: " + e?.message));
-
-      try {
-        healthBrain.register({ name: "autopilot-monitor", priority: 2, start: () => startAutopilotMonitor(), stop: () => stopAutopilotMonitor(), intervalMs: 60_000, maxRestarts: 5 });
-        healthBrain.register({ name: "connection-guardian", priority: 1, start: () => startConnectionGuardian(), stop: () => stopConnectionGuardian(), intervalMs: 60_000, maxRestarts: 10 });
-        if (isEnabled("sentinel")) healthBrain.register({ name: "sentinel", priority: 2, start: () => startSentinel(), stop: () => stopSentinel(), intervalMs: 30_000, maxRestarts: 5 });
-        healthBrain.register({ name: "resilience-watchdog", priority: 2, start: () => startResilienceWatchdog(), stop: () => stopResilienceWatchdog(), intervalMs: 30_000, maxRestarts: 5 });
-        healthBrain.register({ name: "perpetual-repair", priority: 1, start: () => startPerpetualRepair(), stop: () => stopPerpetualRepair(), intervalMs: 30 * 60_000, maxRestarts: 20 });
-        logger.info("[SelfHeal] Health Brain engines registered");
-      } catch (err: any) { logger.error("[SelfHeal] Health Brain registration failed", { error: String(err) }); }
-
-      try {
-        if (isEnabled("stripe-webhook")) webhookPipeline.register("stripe", async (payload, eventType) => {
-          const { WebhookHandlers } = await import("./webhookHandlers");
-          await WebhookHandlers.processWebhook(Buffer.from(JSON.stringify(payload)), "").catch(slog("stripeWebhookProcess"));
-        });
-        webhookPipeline.register("youtube", async (payload, eventType) => {
-          logger.info("[WebhookPipeline] YouTube event processed", { eventType });
-        });
-        logger.info("[SelfHeal] Webhook Pipeline sources registered");
-      } catch (err: any) { logger.error("[SelfHeal] Webhook Pipeline registration failed", { error: String(err) }); }
-
-      if (isEnabled("self-healing-agent")) selfHealingAgent.diagnoseAndHeal().catch(err => logger.error("[SelfHeal] Initial diagnostic failed", { error: String(err) }));
-
-      if (isEnabled("notification-watchdog")) import("./services/notification-watchdog").then(m => {
-        m.startNotificationWatchdog();
-        m.runWatchdogSweep().catch(slog("initialWatchdogSweep"));
-      }).catch(slog("notificationWatchdog"));
 
       // Channel backup sweeper — creates vault entries for ALL channel videos as a
       // full-channel safety backup. Runs 2 min after Wave 11 (T+~42.5min) so the
@@ -4272,7 +4293,7 @@ httpServer.listen(
           .catch(slog("initShadowContentPackager"));
       }, 30 * 60_000);
 
-      logger.info("[Boot] SEQUENTIAL BOOT COMPLETE — all 50+ engines online, each stage started after the previous finished");
+      logger.info("[Boot] ENDOCRINE WAVE COMPLETE — 50+ engines online, body fully operational");
     });
 
     // ── WAVE 12: SOCIAL CORTEX — autonomous social media job handlers ─────────
