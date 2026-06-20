@@ -189,14 +189,20 @@ export async function runQuotaSync(): Promise<SyncState> {
     return _state;
   }
 
-  // Find the connected channel's userId to calibrate
+  // Find the connected channel's userId to calibrate.
+  // ORDER BY id DESC so the highest-id row (real channel) wins over any
+  // ghost/stale channel rows that share the same platform and token filter.
+  // Previously LIMIT 1 without ordering could pick a ghost channel (lower id)
+  // and attribute the full project quota to the wrong userId, causing the
+  // global quota breaker to trip for the real user's channel.
   try {
     const { db } = await import("../db");
     const { channels } = await import("@shared/schema");
-    const { isNotNull } = await import("drizzle-orm");
+    const { isNotNull, eq, desc, and } = await import("drizzle-orm");
     const [ch] = await db.select({ userId: channels.userId })
       .from(channels)
-      .where(isNotNull(channels.accessToken))
+      .where(and(eq(channels.platform, "youtube"), isNotNull(channels.accessToken)))
+      .orderBy(desc(channels.id))
       .limit(1);
 
     if (!ch) {

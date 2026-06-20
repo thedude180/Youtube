@@ -1,6 +1,6 @@
 import { db } from "../db";
-import { youtubeQuotaUsage } from "@shared/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { youtubeQuotaUsage, channels } from "@shared/schema";
+import { eq, and, sql, isNotNull } from "drizzle-orm";
 
 import { createLogger } from "../lib/logger";
 import { logIncidentOnce } from "../lib/incident-log";
@@ -858,6 +858,18 @@ export async function restoreQuotaBreakerOnStartup(): Promise<void> {
     const allRecords = await db.select().from(youtubeQuotaUsage)
       .where(eq(youtubeQuotaUsage.date, today));
 
+    // Build a set of userIds that have an active YouTube channel (non-null token).
+    // Only these users can cause a real global quota exhaustion — ghost/stale
+    // channel rows (e.g. from users who logged in but never connected YouTube)
+    // should not trip the breaker even if their unitsUsed row looks exhausted.
+    // This prevents the ghost-channel pattern from blocking all publishing:
+    //   ghost channel (lower id) gets GCM calibration → row shows 9,994/10,000
+    //   → startup restore trips global breaker → real user can't publish anything.
+    const activeYouTubeRows = await db.select({ userId: channels.userId })
+      .from(channels)
+      .where(and(eq(channels.platform, "youtube"), isNotNull(channels.accessToken)));
+    const activeYouTubeUserIds = new Set(activeYouTubeRows.map(r => r.userId));
+
     for (const record of allRecords) {
       const userId = record.userId;
 
@@ -890,6 +902,23 @@ export async function restoreQuotaBreakerOnStartup(): Promise<void> {
       const isExhausted = record.unitsUsed >= record.quotaLimit;
       const isNearLimit = record.quotaLimit - record.unitsUsed < SAFETY_BUFFER;
       if (isExhausted || isNearLimit) {
+        // ── Ghost-user guard ──────────────────────────────────────────────────
+        // Only trip the global breaker if this userId has an active YouTube
+        // channel with a token.  Ghost users (e.g. someone who logged in with
+        // TikTok OAuth but never connected a real YouTube channel) can accumulate
+        // near-exhausted quota rows because the GCM calibration writes the full
+        // project-wide quota total to whichever userId it resolves first.  If
+        // that userId happens to be a ghost (no active channel), tripping the
+        // global breaker here would block the real user from publishing for the
+        // rest of the day even though their own quota is essentially untouched.
+        if (!activeYouTubeUserIds.has(userId)) {
+          logger.warn(
+            `[QuotaBreaker] Startup restore: skipping breaker trip for user ${userId} ` +
+            `(${record.unitsUsed}/${record.quotaLimit} units) — no active YouTube channel with token; ` +
+            `likely a ghost/stale row from GCM calibration attributing project-wide quota to wrong userId`
+          );
+          continue;
+        }
         // ── Google Monitoring confirmation ────────────────────────────────────
         // Before tripping the breaker from a DB row, ask Google Cloud Monitoring
         // for the authoritative unit count.  This catches phantom / stale rows
