@@ -283,6 +283,107 @@ async function healOrphanedQueueItems(): Promise<number> {
   return (res as any)?.rowCount ?? 0;
 }
 
+// ─── Heal 6c: focus-game contamination ───────────────────────────────────────
+// Cancels queue items that are provably off-brand — explicit non-BF6 gameName,
+// AC-specific caption/tag signals, or a vault source whose game_name is non-BF6.
+// Mirrors the boot-time cleanupNonBF6QueueItems + cleanupNonBF6VaultSourcedQueueItems
+// but runs every self-heal cycle so items created after boot are caught within 30 min.
+async function healFocusGameContamination(): Promise<number> {
+  // Step A: metadata/caption game-name mismatch
+  const byMeta = await db.execute(sql`
+    UPDATE autopilot_queue
+    SET  status   = 'cancelled',
+         metadata = jsonb_set(
+           COALESCE(metadata, '{}'::jsonb),
+           '{failReason}',
+           '"self-heal: off-brand content cancelled — channel is BF6-only"'
+         )
+    WHERE target_platform IN ('youtube','youtubeshorts')
+      AND status IN ('scheduled','pending')
+      AND (
+        (
+          metadata->>'gameName' IS NOT NULL
+          AND metadata->>'gameName' != ''
+          AND metadata->>'gameName' NOT ILIKE '%battlefield 6%'
+          AND metadata->>'gameName' NOT ILIKE '%bf6%'
+          AND metadata->>'gameName' NOT ILIKE '%bf 6%'
+        )
+        OR metadata::text ILIKE '%"AssassinsCreed"%'
+        OR metadata::text ILIKE '%"ACUnity"%'
+        OR (metadata::text ILIKE '%"Valhalla"%' AND metadata::text NOT ILIKE '%battlefield%')
+        OR metadata::text ILIKE '%"Battlefield 2042"%'
+        OR metadata::text ILIKE '%"bf2042"%'
+        OR type = 'studio_auto_publish'
+        OR (
+          caption IS NOT NULL AND caption != ''
+          AND caption NOT ILIKE '%battlefield 6%'
+          AND caption NOT ILIKE '%bf6%'
+          AND caption NOT ILIKE '%bf 6%'
+          AND (
+            caption ILIKE '%assassin%'
+            OR caption ILIKE '%valhalla%'
+            OR caption ILIKE '%battlefield 2042%'
+            OR caption ILIKE '%bf 2042%'
+          )
+        )
+      )
+  `);
+
+  // Step B: vault source game_name mismatch (null gameName in metadata isn't enough
+  // to catch AC4/other games whose vault entry IS tagged non-BF6)
+  const byVault = await db.execute(sql`
+    UPDATE autopilot_queue aq
+    SET  status        = 'cancelled',
+         error_message = 'self-heal: source vault game_name is non-BF6 — off-brand content gate'
+    FROM content_vault_backups cvb
+    WHERE aq.status IN ('scheduled','pending')
+      AND aq.metadata->>'sourceYoutubeId' = cvb.youtube_id
+      AND cvb.game_name IS NOT NULL
+      AND cvb.game_name NOT ILIKE '%battlefield%'
+      AND cvb.game_name NOT ILIKE '%bf6%'
+      AND cvb.game_name NOT ILIKE '%bf 6%'
+  `);
+
+  return ((byMeta as any)?.rowCount ?? 0) + ((byVault as any)?.rowCount ?? 0);
+}
+
+// ─── Heal 6d: stuck pending items ────────────────────────────────────────────
+// Items left in 'pending' state from a previous crash or processing timeout are
+// invisible to publishers (they only poll 'scheduled').  Reset them so they're
+// picked up again on the next publisher sweep.
+async function healStuckPendingItems(): Promise<number> {
+  const res = await db
+    .update(autopilotQueue)
+    .set({ status: "scheduled", errorMessage: "Reset from stuck pending by self-heal" } as any)
+    .where(
+      and(
+        eq(autopilotQueue.status, "pending"),
+        // Only YouTube-targeted items — non-YouTube items are permanently cancelled
+        // by migration 015 and must never be re-activated.
+        sql`${autopilotQueue.targetPlatform} IN ('youtube','youtubeshorts')`
+      )!
+    );
+  return (res as any)?.rowCount ?? 0;
+}
+
+// ─── Heal 6e: pre-encoder retired items ──────────────────────────────────────
+// Items with preEncoderFailCount >= 3 are permanently excluded by the pre-encoder
+// (it skips them silently) but their status stays 'scheduled', so the publisher
+// picks them up, pre-encoder skips them, publisher puts them back — a silent
+// infinite cycle that wastes a poll slot every 90 s indefinitely.
+// Cancel them here so they stop consuming queue bandwidth.
+async function healPreEncoderRetiredItems(): Promise<number> {
+  const res = await db.execute(sql`
+    UPDATE autopilot_queue
+    SET  status        = 'cancelled',
+         error_message = 'self-heal: pre-encoder permanently excluded this item (failCount >= 3) — source unprocessable'
+    WHERE status IN ('scheduled','pending')
+      AND (metadata->>'preEncoderFailCount') ~ '^[0-9]+$'
+      AND (metadata->>'preEncoderFailCount')::int >= 3
+  `);
+  return (res as any)?.rowCount ?? 0;
+}
+
 // ─── Heal 7: jobs table ──────────────────────────────────────────────────────
 async function healJobsTable(): Promise<number> {
   const cutoff = new Date(Date.now() - STUCK_JOBS_MS);
@@ -415,14 +516,17 @@ export async function runPipelineSelfHeal(deep = false): Promise<void> {
   // Run all heals in parallel — use allSettled so one failing step
   // never crashes the entire run (e.g., transient DB lock contention).
   const settled = await Promise.allSettled([
-    healContentPipeline(),
-    healPushBacklog(),
-    healStreamEditJobs(),
-    healContentClips(),
-    healStudioVideos(),
-    healAutopilotQueue(),
-    healJobsTable(),
-    healOrphanedQueueItems(),
+    healContentPipeline(),       // 0
+    healPushBacklog(),            // 1
+    healStreamEditJobs(),         // 2
+    healContentClips(),           // 3
+    healStudioVideos(),           // 4
+    healAutopilotQueue(),         // 5
+    healJobsTable(),              // 6
+    healOrphanedQueueItems(),     // 7 — queue items pointing to failed/skipped vault
+    healFocusGameContamination(), // 8 — off-brand / non-BF6 game items
+    healStuckPendingItems(),      // 9 — stuck pending → scheduled
+    healPreEncoderRetiredItems(), // 10 — preEncoderFailCount >= 3 silent-cycle items
   ]);
 
   // Extract results, defaulting to zero on rejection so totals stay sane.
@@ -441,9 +545,15 @@ export async function runPipelineSelfHeal(deep = false): Promise<void> {
   const autopilotFixed    = safeNum(settled[5] as PromiseSettledResult<number>);
   const jobsFixed         = safeNum(settled[6] as PromiseSettledResult<number>);
   const orphansFixed      = safeNum(settled[7] as PromiseSettledResult<number>);
+  const focusFixed        = safeNum(settled[8] as PromiseSettledResult<number>);
+  const pendingFixed      = safeNum(settled[9] as PromiseSettledResult<number>);
+  const preEncFixed       = safeNum(settled[10] as PromiseSettledResult<number>);
 
   // Log per-step results so each fix is visible in real-time (not just the summary).
-  const STEP_NAMES = ["pipeline","backlog","editJobs","clips","studio","autopilot","jobs","orphans"] as const;
+  const STEP_NAMES = [
+    "pipeline","backlog","editJobs","clips","studio","autopilot",
+    "jobs","orphans","focusGame","stuckPending","preEncoder",
+  ] as const;
   settled.forEach((r, i) => {
     const name = STEP_NAMES[i];
     if (r.status === "fulfilled") {
@@ -473,7 +583,8 @@ export async function runPipelineSelfHeal(deep = false): Promise<void> {
 
   totalRecovered = pipelineStuck + pipelineErrored + backlogFixed +
     editStuck + editTransient + editMissing +
-    clipsFixed + studioFixed + autopilotFixed + jobsFixed + orphansFixed;
+    clipsFixed + studioFixed + autopilotFixed + jobsFixed +
+    orphansFixed + focusFixed + pendingFixed + preEncFixed;
 
   // Vault heal + high-failCount retirement run every cycle
   const [vaultStuck, vaultFailed] = await healVaultBackups();
@@ -492,6 +603,7 @@ export async function runPipelineSelfHeal(deep = false): Promise<void> {
       `editJobs[stuck:${editStuck} transient:${editTransient} missing:${editMissing}] ` +
       `clips[${clipsFixed}] studio[${studioFixed}] ` +
       `autopilot[${autopilotFixed}] jobs[${jobsFixed}] orphans[${orphansFixed}] ` +
+      `focusGame[${focusFixed}] stuckPending[${pendingFixed}] preEnc[${preEncFixed}] ` +
       `vault[stuck:${vaultStuck} failed:${vaultFailed} retired:${vaultRetired}]`;
 
     logger.info(`[self-heal] Recovered ${totalRecovered} items in ${elapsed}ms — ${summary}`);
