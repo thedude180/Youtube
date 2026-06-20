@@ -121,11 +121,13 @@ async function gatherSystemState(): Promise<SystemState> {
     `),
 
     // Queue depth (pending Shorts + long-form)
+    // autopilot_queue has no top-level content_type column — content type is stored
+    // in metadata->>'contentType'.  Using the JSONB accessor here is the only safe path.
     db.execute(sql`
       SELECT
-        SUM(CASE WHEN content_type IN ('youtube_short','auto-clip','vod-short','platform_short')
+        SUM(CASE WHEN metadata->>'contentType' IN ('youtube_short','auto-clip','vod-short','platform_short','short')
               THEN 1 ELSE 0 END)::int                               AS shorts,
-        SUM(CASE WHEN content_type IN ('long-form-clip','long-form','vod_long_form','long-form-compilation')
+        SUM(CASE WHEN metadata->>'contentType' IN ('long-form-clip','long-form','vod_long_form','long-form-compilation')
               THEN 1 ELSE 0 END)::int                               AS longform
       FROM autopilot_queue
       WHERE status  = 'scheduled'
