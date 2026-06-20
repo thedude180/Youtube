@@ -1011,17 +1011,151 @@ export function registerAdminRoutes(app: Express) {
       return res.status(400).json({ ok: false, error: "status must be approved|rejected|built" });
     }
     try {
-      const { db: dbInstance } = await import("../db");
       const { serviceProposals } = await import("@shared/schema");
       const { eq } = await import("drizzle-orm");
-      await dbInstance.update(serviceProposals)
-        .set({ status: status!, reviewedAt: new Date(), metadata: { reviewedBy: userId, reviewedAt: new Date().toISOString() } as any })
+
+      const [proposal] = await db.select({
+        id:              serviceProposals.id,
+        title:           serviceProposals.title,
+        proposedService: serviceProposals.proposedService,
+        scaffold:        serviceProposals.scaffold,
+        problem:         serviceProposals.problem,
+        rationale:       serviceProposals.rationale,
+        status:          serviceProposals.status,
+        metadata:        serviceProposals.metadata,
+      })
+        .from(serviceProposals)
+        .where(eq(serviceProposals.id, id))
+        .limit(1);
+
+      if (!proposal) return res.status(404).json({ ok: false, error: "Proposal not found" });
+
+      await db.update(serviceProposals)
+        .set({ status: status!, reviewedAt: new Date(), metadata: { ...(proposal.metadata as any), reviewedBy: userId, reviewedAt: new Date().toISOString() } as any })
         .where(eq(serviceProposals.id, id));
+
+      if (status === "approved") {
+        maybeScaffoldAndNotify(proposal).catch(() => {});
+      }
+
       res.json({ ok: true, id, status });
     } catch (err: any) {
       res.status(500).json({ ok: false, error: err?.message ?? String(err) });
     }
   });
+
+  // ── Auto-scaffold: write stub file + notify owner on proposal approval ───────
+
+  function toPascalCase(s: string): string {
+    return s.split("-").map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join("");
+  }
+
+  async function maybeScaffoldAndNotify(proposal: {
+    id:              number;
+    title:           string;
+    proposedService: string;
+    scaffold:        string;
+    problem:         string;
+    rationale:       string;
+  }): Promise<void> {
+    try {
+      const { existsSync, writeFileSync } = await import("fs");
+      const { join } = await import("path");
+
+      const safeName = proposal.proposedService
+        .toLowerCase()
+        .replace(/[^a-z0-9-]/g, "-")
+        .replace(/-+/g, "-")
+        .replace(/^-|-$/g, "")
+        .slice(0, 80) || `scaffolded-service-${proposal.id}`;
+
+      const absPath = join(process.cwd(), "server", "services", `${safeName}.ts`);
+      const relPath = `server/services/${safeName}.ts`;
+
+      let skipped = false;
+      if (existsSync(absPath)) {
+        skipped = true;
+      } else {
+        const initName = `init${toPascalCase(safeName)}`;
+        const content = [
+          `/**`,
+          ` * AUTO-SCAFFOLDED — CreatorOS Self-Architect`,
+          ` * ${"─".repeat(75)}`,
+          ` * Proposal #${proposal.id}: ${proposal.title}`,
+          ` *`,
+          ` * Problem:`,
+          ` *   ${proposal.problem.replace(/\n/g, "\n *   ")}`,
+          ` *`,
+          ` * ⚠️  NOT YET ACTIVE — auto-generated stub, not wired into the server yet.`,
+          ` *     When ready, tell the Replit agent:`,
+          ` *       "implement all scaffolded services"`,
+          ` *     The agent will build out the full implementation and add the init call`,
+          ` *     to the appropriate Wave in server/index.ts.`,
+          ` *`,
+          ` * Manual wire-up (when ready):`,
+          ` *   import { ${initName} } from "./services/${safeName}";`,
+          ` *   ${initName}(userId); // add to Wave N in server/index.ts`,
+          ` */`,
+          ``,
+          proposal.scaffold,
+        ].join("\n");
+        writeFileSync(absPath, content, "utf8");
+      }
+
+      // ── Notify owner ────────────────────────────────────────────────────────
+      const domain  = process.env.REPLIT_DOMAINS?.split(",")[0];
+      if (!domain) return;
+      const baseUrl = `https://${domain}`;
+
+      const { sendGmail } = await import("../services/gmail-client");
+      const OWNER_EMAIL = "thedude180@gmail.com";
+
+      const html = skipped
+        ? `<div style="font-family:sans-serif;max-width:600px;margin:0 auto">
+            <div style="background:#d97706;padding:16px 24px;border-radius:8px 8px 0 0">
+              <h2 style="color:#fff;margin:0;font-size:18px">⚠️ Scaffold skipped — file exists</h2>
+            </div>
+            <div style="background:#fff;border:1px solid #e5e7eb;border-top:none;padding:24px;border-radius:0 0 8px 8px">
+              <p style="font-size:15px;color:#111;margin:0 0 8px"><strong>${proposal.title}</strong> was approved.</p>
+              <p style="font-size:14px;color:#374151;margin:0 0 20px"><code style="background:#f3f4f6;padding:2px 6px;border-radius:4px">${relPath}</code> already exists — not overwritten.</p>
+              <a href="${baseUrl}/admin" style="font-size:13px;color:#6b7280">View dashboard →</a>
+            </div>
+          </div>`
+        : `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:620px;margin:0 auto;background:#f9fafb">
+            <div style="background:#111827;padding:20px 28px;border-radius:10px 10px 0 0">
+              <p style="color:#6b7280;font-size:12px;margin:0 0 4px;text-transform:uppercase;letter-spacing:.08em">CreatorOS · Self-Architect</p>
+              <h1 style="color:#f9fafb;font-size:20px;font-weight:700;margin:0">🛠 Scaffold Written</h1>
+            </div>
+            <div style="background:#fff;border:1px solid #e5e7eb;border-top:none;padding:28px;border-radius:0 0 10px 10px">
+              <h2 style="font-size:17px;font-weight:700;color:#111827;margin:0 0 12px">${proposal.title}</h2>
+              <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;margin-bottom:20px">
+                <p style="font-size:12px;font-weight:700;color:#166534;text-transform:uppercase;letter-spacing:.07em;margin:0 0 6px">File created</p>
+                <code style="font-size:14px;color:#15803d;word-break:break-all">${relPath}</code>
+              </div>
+              <p style="font-size:14px;color:#374151;line-height:1.6;margin:0 0 20px">
+                The stub is on disk and ready for you to review. When you want it (and any other scaffolded services) built out fully, just tell the Replit agent:
+              </p>
+              <div style="background:#1e293b;border-radius:8px;padding:14px 18px;margin-bottom:24px">
+                <code style="color:#a5f3fc;font-size:14px">"implement all scaffolded services"</code>
+              </div>
+              <a href="${baseUrl}/admin" style="font-size:13px;color:#6b7280;text-decoration:underline">View all proposals in the dashboard →</a>
+              <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0 12px">
+              <p style="font-size:11px;color:#9ca3af;margin:0">Proposal #${proposal.id} · ${new Date().toUTCString()}</p>
+            </div>
+          </div>`;
+
+      await Promise.race([
+        sendGmail(OWNER_EMAIL, skipped
+          ? `[CreatorOS] Scaffold skipped (file exists): ${proposal.title}`
+          : `[CreatorOS] Scaffold written: ${relPath}`,
+          html),
+        new Promise<boolean>(r => setTimeout(() => r(false), 10_000)),
+      ]);
+    } catch (err: any) {
+      const logger = (await import("../lib/logger")).createLogger("admin");
+      logger.debug(`[Admin] maybeScaffoldAndNotify non-fatal: ${err?.message?.slice(0, 80)}`);
+    }
+  }
 
   // ── Helper: HTML response page for email quick-action links ─────────────────
 
@@ -1077,10 +1211,14 @@ export function registerAdminRoutes(app: Express) {
       const { eq } = await import("drizzle-orm");
 
       const [proposal] = await db.select({
-        id:       serviceProposals.id,
-        title:    serviceProposals.title,
-        status:   serviceProposals.status,
-        metadata: serviceProposals.metadata,
+        id:              serviceProposals.id,
+        title:           serviceProposals.title,
+        proposedService: serviceProposals.proposedService,
+        scaffold:        serviceProposals.scaffold,
+        problem:         serviceProposals.problem,
+        rationale:       serviceProposals.rationale,
+        status:          serviceProposals.status,
+        metadata:        serviceProposals.metadata,
       })
         .from(serviceProposals)
         .where(eq(serviceProposals.id, id))
@@ -1103,8 +1241,12 @@ export function registerAdminRoutes(app: Express) {
         })
         .where(eq(serviceProposals.id, id));
 
+      if (action === "approve") {
+        maybeScaffoldAndNotify(proposal).catch(() => {});
+      }
+
       const verb = action === "approve" ? "approved" : "rejected";
-      return ok(`Proposal <strong>"${proposal.title}"</strong> has been <strong>${verb}</strong>.`);
+      return ok(`Proposal <strong>"${proposal.title}"</strong> has been <strong>${verb}</strong>. ${action === "approve" ? "The scaffold file is being written — you'll get a follow-up email." : ""}`);
     } catch (err: any) {
       return fail("Server error — please try again or use the dashboard.");
     }
