@@ -32,15 +32,145 @@ const logger = createLogger("self-architect");
 const SERVICE_KEY   = "self-architect";
 const OWNER_EMAIL   = "thedude180@gmail.com";
 
+// ── Platform secrets guide ────────────────────────────────────────────────────
+// When a proposal requires secrets the system doesn't have, this table provides
+// exact step-by-step setup instructions included directly in the proposal email.
+
+interface PlatformGuide {
+  name:      string;
+  portalUrl: string;
+  steps:     string[];
+  secrets:   string[];
+}
+
+const PLATFORM_GUIDES: Record<string, PlatformGuide> = {
+  TIKTOK_CLIENT_ID: {
+    name:      "TikTok",
+    portalUrl: "https://developers.tiktok.com",
+    steps: [
+      "Go to <strong>developers.tiktok.com</strong> → My Apps → Create app",
+      "Add products: <em>Login Kit</em> + <em>Content Posting API</em>",
+      "Copy <strong>Client Key</strong> → paste as <code>TIKTOK_CLIENT_ID</code> in Replit Secrets",
+      "Copy <strong>Client Secret</strong> → paste as <code>TIKTOK_CLIENT_SECRET</code> in Replit Secrets",
+      "Set redirect URI to: <code>https://YOUR_DOMAIN/api/auth/tiktok/callback</code>",
+    ],
+    secrets: ["TIKTOK_CLIENT_ID", "TIKTOK_CLIENT_SECRET"],
+  },
+  TIKTOK_CLIENT_SECRET: {
+    name: "TikTok", portalUrl: "https://developers.tiktok.com",
+    steps: [], secrets: ["TIKTOK_CLIENT_ID", "TIKTOK_CLIENT_SECRET"],
+  },
+  X_CLIENT_ID: {
+    name:      "X / Twitter",
+    portalUrl: "https://developer.twitter.com/en/portal/projects-and-apps",
+    steps: [
+      "Go to <strong>developer.twitter.com</strong> → Projects & Apps → Create App",
+      "Enable <em>OAuth 2.0</em> with Read + Write permissions",
+      "Copy <strong>API Key</strong> → <code>X_API_KEY</code>, <strong>API Secret</strong> → <code>X_API_KEY_SECRET</code>",
+      "Copy <strong>Client ID</strong> → <code>X_CLIENT_ID</code>, <strong>Client Secret</strong> → <code>X_CLIENT_SECRET</code>",
+      "Set callback URL to: <code>https://YOUR_DOMAIN/api/auth/twitter/callback</code>",
+    ],
+    secrets: ["X_CLIENT_ID", "X_CLIENT_SECRET", "X_API_KEY", "X_API_KEY_SECRET"],
+  },
+  X_CLIENT_SECRET:   { name: "X / Twitter", portalUrl: "https://developer.twitter.com/en/portal/projects-and-apps", steps: [], secrets: ["X_CLIENT_ID", "X_CLIENT_SECRET"] },
+  X_API_KEY:         { name: "X / Twitter", portalUrl: "https://developer.twitter.com/en/portal/projects-and-apps", steps: [], secrets: ["X_API_KEY", "X_API_KEY_SECRET"] },
+  X_API_KEY_SECRET:  { name: "X / Twitter", portalUrl: "https://developer.twitter.com/en/portal/projects-and-apps", steps: [], secrets: ["X_API_KEY", "X_API_KEY_SECRET"] },
+  TWITCH_CLIENT_ID: {
+    name:      "Twitch",
+    portalUrl: "https://dev.twitch.tv/console/apps",
+    steps: [
+      "Go to <strong>dev.twitch.tv</strong> → Console → Register Your Application",
+      "Set redirect URI to: <code>https://YOUR_DOMAIN/api/auth/twitch/callback</code>",
+      "Copy <strong>Client ID</strong> → <code>TWITCH_CLIENT_ID</code>",
+      "Generate and copy <strong>Client Secret</strong> → <code>TWITCH_CLIENT_SECRET</code>",
+      "From Twitch Dashboard → Stream Manager → copy <strong>Stream Key</strong> → <code>TWITCH_STREAM_KEY</code>",
+    ],
+    secrets: ["TWITCH_CLIENT_ID", "TWITCH_CLIENT_SECRET", "TWITCH_STREAM_KEY"],
+  },
+  TWITCH_CLIENT_SECRET: { name: "Twitch", portalUrl: "https://dev.twitch.tv/console/apps", steps: [], secrets: ["TWITCH_CLIENT_ID", "TWITCH_CLIENT_SECRET"] },
+  TWITCH_STREAM_KEY:    { name: "Twitch", portalUrl: "https://dev.twitch.tv/console/apps", steps: [], secrets: ["TWITCH_STREAM_KEY"] },
+  KICK_CLIENT_ID: {
+    name:      "Kick",
+    portalUrl: "https://kick.com/settings/developer",
+    steps: [
+      "Go to <strong>kick.com</strong> → Settings → Developer → Create OAuth App",
+      "Copy <strong>Client ID</strong> → <code>KICK_CLIENT_ID</code>, <strong>Client Secret</strong> → <code>KICK_CLIENT_SECRET</code>",
+      "From Kick Dashboard → copy <strong>Stream Key</strong> → <code>KICK_STREAM_KEY</code>",
+      "Set stream URL: <code>rtmps://fa723fc1b171.global-contribute.live-video.net/app/</code> → <code>KICK_STREAM_URL</code>",
+    ],
+    secrets: ["KICK_CLIENT_ID", "KICK_CLIENT_SECRET", "KICK_STREAM_KEY", "KICK_STREAM_URL"],
+  },
+  KICK_CLIENT_SECRET: { name: "Kick", portalUrl: "https://kick.com/settings/developer", steps: [], secrets: ["KICK_CLIENT_ID", "KICK_CLIENT_SECRET"] },
+  KICK_STREAM_KEY:    { name: "Kick", portalUrl: "https://kick.com/settings/developer", steps: [], secrets: ["KICK_STREAM_KEY", "KICK_STREAM_URL"] },
+  KICK_STREAM_URL:    { name: "Kick", portalUrl: "https://kick.com/settings/developer", steps: [], secrets: ["KICK_STREAM_KEY", "KICK_STREAM_URL"] },
+  RUMBLE_API_KEY: {
+    name:      "Rumble",
+    portalUrl: "https://rumble.com/account/live",
+    steps: [
+      "Log into <strong>rumble.com</strong> → Account → Go Live",
+      "Copy <strong>Stream Key</strong> → <code>RUMBLE_STREAM_KEY</code>",
+      "Set stream URL: <code>rtmp://live.rumble.com/live/</code> → <code>RUMBLE_STREAM_URL</code>",
+      "For API access: contact Rumble support for API credentials → <code>RUMBLE_API_KEY</code>",
+    ],
+    secrets: ["RUMBLE_API_KEY", "RUMBLE_STREAM_KEY", "RUMBLE_STREAM_URL"],
+  },
+  RUMBLE_STREAM_KEY: { name: "Rumble", portalUrl: "https://rumble.com/account/live", steps: [], secrets: ["RUMBLE_STREAM_KEY", "RUMBLE_STREAM_URL"] },
+  RUMBLE_STREAM_URL: { name: "Rumble", portalUrl: "https://rumble.com/account/live", steps: [], secrets: ["RUMBLE_STREAM_KEY", "RUMBLE_STREAM_URL"] },
+  DISCORD_BOT_TOKEN: {
+    name:      "Discord",
+    portalUrl: "https://discord.com/developers/applications",
+    steps: [
+      "Go to <strong>discord.com/developers</strong> → New Application",
+      "Under <em>Bot</em>: copy <strong>Token</strong> → <code>DISCORD_BOT_TOKEN</code>",
+      "Copy <strong>Public Key</strong> → <code>DISCORD_PUBLIC_KEY</code>",
+      "Under <em>OAuth2</em>: copy <strong>Client ID</strong> → <code>DISCORD_CLIENT_ID</code>, <strong>Client Secret</strong> → <code>DISCORD_CLIENT_SECRET</code>",
+    ],
+    secrets: ["DISCORD_BOT_TOKEN", "DISCORD_PUBLIC_KEY", "DISCORD_CLIENT_ID", "DISCORD_CLIENT_SECRET"],
+  },
+  DISCORD_CLIENT_ID:     { name: "Discord", portalUrl: "https://discord.com/developers/applications", steps: [], secrets: ["DISCORD_CLIENT_ID", "DISCORD_CLIENT_SECRET"] },
+  DISCORD_CLIENT_SECRET: { name: "Discord", portalUrl: "https://discord.com/developers/applications", steps: [], secrets: ["DISCORD_CLIENT_ID", "DISCORD_CLIENT_SECRET"] },
+  INSTAGRAM_CLIENT_ID: {
+    name:      "Instagram",
+    portalUrl: "https://developers.facebook.com/apps/",
+    steps: [
+      "Go to <strong>developers.facebook.com</strong> → Create App → Business type",
+      "Add <em>Instagram Basic Display</em> + <em>Instagram Graph API</em> products",
+      "Copy <strong>App ID</strong> → <code>INSTAGRAM_CLIENT_ID</code>, <strong>App Secret</strong> → <code>INSTAGRAM_CLIENT_SECRET</code>",
+      "Set redirect URI to: <code>https://YOUR_DOMAIN/api/auth/instagram/callback</code>",
+    ],
+    secrets: ["INSTAGRAM_CLIENT_ID", "INSTAGRAM_CLIENT_SECRET"],
+  },
+  INSTAGRAM_CLIENT_SECRET: { name: "Instagram", portalUrl: "https://developers.facebook.com/apps/", steps: [], secrets: ["INSTAGRAM_CLIENT_ID", "INSTAGRAM_CLIENT_SECRET"] },
+};
+
+// Returns unique platforms that have at least one missing secret, with full setup steps.
+function getMissingPlatformGuides(requiredSecrets: string[]): PlatformGuide[] {
+  const seen   = new Set<string>();
+  const guides: PlatformGuide[] = [];
+
+  for (const key of requiredSecrets) {
+    const guide = PLATFORM_GUIDES[key];
+    if (!guide || seen.has(guide.name)) continue;
+    // Only include if this platform has at least one missing secret
+    const anyMissing = guide.secrets.some(s => !process.env[s]);
+    if (anyMissing && guide.steps.length > 0) {
+      seen.add(guide.name);
+      guides.push(guide);
+    }
+  }
+  return guides;
+}
+
 // ── Proposal email notification ───────────────────────────────────────────────
 
 async function sendProposalEmail(
-  id:        number,
-  title:     string,
-  problem:   string,
-  rationale: string,
-  priority:  number,
-  token:     string,
+  id:               number,
+  title:            string,
+  problem:          string,
+  rationale:        string,
+  priority:         number,
+  token:            string,
+  requiredSecrets?: string[],
 ): Promise<void> {
   try {
     const { sendGmail } = await import("./gmail-client");
@@ -85,6 +215,27 @@ async function sendProposalEmail(
       <p style="font-size:14px;color:#374151;margin:0;line-height:1.6">${rationale.replace(/\n/g, "<br>")}</p>
     </div>
 
+    ${(() => {
+      const missingGuides = getMissingPlatformGuides(requiredSecrets ?? []);
+      if (missingGuides.length === 0) return "";
+      const sections = missingGuides.map(g => `
+    <div style="margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <span style="font-size:13px;font-weight:700;color:#92400e">${g.name}</span>
+        <a href="${g.portalUrl}" style="font-size:12px;color:#b45309;text-decoration:underline" target="_blank">Open developer portal →</a>
+      </div>
+      <ol style="margin:0;padding-left:20px">
+        ${g.steps.map(s => `<li style="font-size:13px;color:#374151;margin-bottom:5px;line-height:1.5">${s}</li>`).join("")}
+      </ol>
+    </div>`).join('<hr style="border:none;border-top:1px solid #fde68a;margin:12px 0">');
+      return `
+    <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:16px;margin-bottom:20px">
+      <p style="font-size:12px;font-weight:700;color:#92400e;text-transform:uppercase;letter-spacing:.07em;margin:0 0 12px">⚠️ Setup required before approving</p>
+      <p style="font-size:13px;color:#78350f;margin:0 0 14px">This service needs credentials you haven't configured yet. Add them to Replit Secrets first, then approve.</p>
+      ${sections}
+      <p style="font-size:12px;color:#92400e;margin:14px 0 0">After adding secrets: redeploy the app once, then come back and approve.</p>
+    </div>`;
+    })()}
     <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:12px">
       <tr>
         <td style="padding-right:5px">
@@ -275,8 +426,11 @@ Return JSON:
   "rationale": "why this is the most critical gap right now (3-4 sentences)",
   "evidenceSources": ["incident_type_1", "knowledge_gap_2"],
   "priority": <1-10>,
+  "requiredSecrets": ["ENV_VAR_NAME_1", "ENV_VAR_NAME_2"],
   "scaffold": "// TypeScript file skeleton showing key exports and structure (not full implementation)"
-}`,
+}
+
+For "requiredSecrets": list any environment variable names (e.g. TIKTOK_CLIENT_ID, TWITCH_CLIENT_SECRET) this service needs to function. Leave as an empty array [] if the service only uses existing system capabilities.`,
     );
 
     const parsed = safeParseJSON<{
@@ -286,6 +440,7 @@ Return JSON:
       rationale?: string;
       evidenceSources?: string[];
       priority?: number;
+      requiredSecrets?: string[];
       scaffold?: string;
     } | null>(result.content, null);
 
@@ -313,7 +468,7 @@ Return JSON:
     logger.info(`[SelfArchitect] New service proposal created: "${parsed.title}" (priority ${priority})`);
 
     // ── Fire-and-forget email notification ──────────────────────────────────
-    sendProposalEmail(row.id, parsed.title, parsed.problem, parsed.rationale ?? "", priority, token)
+    sendProposalEmail(row.id, parsed.title, parsed.problem, parsed.rationale ?? "", priority, token, parsed.requiredSecrets ?? [])
       .catch(() => {});
   } catch (err: any) {
     logger.debug(`[SelfArchitect] Proposal generation non-fatal: ${err?.message?.slice(0, 120)}`);
