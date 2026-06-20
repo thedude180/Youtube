@@ -6227,6 +6227,51 @@ async function migration109FailNotFoundPushBacklogItems(): Promise<void> {
   }
 }
 
+// ── Migration 110: Create ASI signal-bus + cycle-report + strategy tables ─────
+async function migration110CreateAsiSignalTables(): Promise<void> {
+  const FLAG = "migration:110:asi_signal_tables_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS asi_signals (
+        id           serial PRIMARY KEY,
+        source_tier  text NOT NULL,
+        signal_type  text NOT NULL,
+        payload      jsonb NOT NULL DEFAULT '{}',
+        consumed_at  timestamp,
+        created_at   timestamp NOT NULL DEFAULT NOW()
+      )
+    `));
+    await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS asi_signals_consumed_idx ON asi_signals (consumed_at) WHERE consumed_at IS NULL`));
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS asi_cycle_reports (
+        id           serial PRIMARY KEY,
+        tier         text NOT NULL,
+        cycle_type   text NOT NULL,
+        summary      text NOT NULL DEFAULT '',
+        metrics      jsonb NOT NULL DEFAULT '{}',
+        duration_ms  integer NOT NULL DEFAULT 0,
+        created_at   timestamp NOT NULL DEFAULT NOW()
+      )
+    `));
+    await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS asi_cycle_tier_idx ON asi_cycle_reports (tier, created_at DESC)`));
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS asi_strategy (
+        id           serial PRIMARY KEY,
+        strategy_key text NOT NULL UNIQUE,
+        value        jsonb NOT NULL DEFAULT '{}',
+        updated_at   timestamp NOT NULL DEFAULT NOW(),
+        created_at   timestamp NOT NULL DEFAULT NOW()
+      )
+    `));
+    log.info("[Migration 110] ASI tables created: asi_signals, asi_cycle_reports, asi_strategy");
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 110] Failed (non-fatal): ${err?.message?.slice(0, 200)}`);
+    await setFlag(FLAG).catch(() => {});
+  }
+}
+
 // ── Non-flagged per-boot: cancel queue items pointing to non-BF6 vault sources
 // cleanupNonBF6QueueItems() cancels items where metadata.gameName is explicitly
 // non-BF6.  But items created with null gameName (benefit-of-doubt) that point
@@ -6559,6 +6604,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration107CreateServicePerformanceMetrics();
     await migration108CancelSkippedVaultSourceItems();
     await migration109FailNotFoundPushBacklogItems();
+    await migration110CreateAsiSignalTables();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips
@@ -6619,10 +6665,10 @@ export async function runStartupMigrations(): Promise<void> {
       logEvent({
         eventType: "migration",
         service:   "startup-migrations",
-        title:     `Boot-heal complete — ${105} migrations registered, per-boot cleanups ran`,
+        title:     `Boot-heal complete — ${110} migrations registered, per-boot cleanups ran`,
         severity:  "info",
         detail: {
-          totalMigrations:  109,
+          totalMigrations:  110,
           perBootCleanups: [
             "resetStaleDownloadedVaultEntries",
             "cancelLongStreamEditJobs",

@@ -154,3 +154,4 @@
 - [Publisher window-collision guard](publisher-window-collision.md) — items queued before window-claim system was solid had clustered scheduledAt → 3 Shorts in 1 hour; fix: batchClaimedSlots[] in publisher loop checks 90-min proximity and reschedules colliders via getNextShortPublishTime.
 - [BF2042 focus-gate false-allow](bf2042-focus-gate.md) — buildGameFilter abbrevMap "battlefield 6" uses bare "battlefield" that matches BF2042; fix: explicit DENY_RE before re.test(); per-boot cleanup + migration also needed.
 - [Shorts boring-clip freeze gate](shorts-boring-clip-gate.md) — encodeShort had no quality gate; wall-stare/idle clips encoded and published; fix: detectFreezeSegments(rawPath,10) before encode; >50% frozen → throw boring-clip: error.
+- [Midnight publish empty-queue fix](midnight-publish-fix.md) — quota reset cron Phase 3: seeds back-catalog + pre-encode + final publish pass when both retry passes return 0; back-catalog timer +5min → +2min.

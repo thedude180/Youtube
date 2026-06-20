@@ -130,7 +130,7 @@ async function checkPreLivePrep(): Promise<void> {
       logger.info(`[LiveStreamASI] Stream "${stream.title}" starts within 2h — ensuring Live Director prep`);
       try {
         const { prepareLiveStream } = await import("./youtube-live-copilot");
-        await prepareLiveStream(USER_ID, String(stream.id));
+        await prepareLiveStream(USER_ID, stream.id);
         await setState(SVC_KEY, prepKey, { at: new Date().toISOString() });
       } catch (e: any) {
         logger.debug(`[LiveStreamASI] prepareLiveStream non-fatal: ${e?.message?.slice(0, 80)}`);

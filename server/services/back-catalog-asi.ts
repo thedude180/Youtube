@@ -75,7 +75,7 @@ async function measurePipelineHealth(): Promise<Record<string, any>> {
       .from(backCatalogVideos)
       .where(and(
         eq(backCatalogVideos.userId, USER_ID),
-        eq(backCatalogVideos.shortsMined, false),
+        eq(backCatalogVideos.minedForShorts, false),
       ));
 
     const shortMetrics = metrics.find(m => m.contentType?.includes("short"));

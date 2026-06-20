@@ -565,7 +565,45 @@ export function initQuotaResetCron(): void {
             totalPublished           = (longFormResult.published ?? 0) + (shortsResult.published ?? 0);
 
             if ((retryLf.published ?? 0) + (retrySp.published ?? 0) === 0) {
-              logger.warn("[QuotaReset] Still 0 published after retry — queue may be empty or OAuth token missing");
+              logger.warn("[QuotaReset] Still 0 published after retry — seeding queue from back-catalog (Phase 3)");
+
+              // ── Phase 3: Emergency post-reset queue seed ───────────────────────
+              // The queue was genuinely empty at reset — back-catalog runner hadn't
+              // fired yet (it targets reset+2min). Seed it NOW so the pre-encoder
+              // can encode clips and the hourly sweep publishes them ~15 min later.
+              // Runs fire-and-forget outside the IO slot so downloads/uploads can
+              // proceed independently. A final publish pass fires after 12 min.
+              const _rfp = { runShortsClipPublisher, runLongFormClipPublisher };
+              setImmediate(async () => {
+                try {
+                  logger.info("[QuotaReset] Phase 3: seeding queue from back-catalog…");
+                  const { runBackCatalogForAllEligibleUsers } = await import("./youtube-back-catalog-runner");
+                  await Promise.race([
+                    runBackCatalogForAllEligibleUsers(),
+                    new Promise<void>(r => setTimeout(r, 5 * 60_000)), // 5-min cap
+                  ]);
+                  logger.info("[QuotaReset] Phase 3: seeding done — triggering pre-encode");
+
+                  // Kick off a pre-encode cycle so items are ready faster
+                  import("./pre-encoder").then(m => m.runPreEncodeCycle().catch(() => {})).catch(() => {});
+
+                  // Wait for pre-encoder to work through a cycle (~10 min), then publish
+                  await new Promise(r => setTimeout(r, 10 * 60_000));
+                  clearQuotaBreaker();
+                  const lf3 = await _rfp.runLongFormClipPublisher({ bypassBreakerCheck: true }).catch(() => ({ published: 0 }));
+                  await new Promise(r => setTimeout(r, 3_000));
+                  clearQuotaBreaker();
+                  const sp3 = await _rfp.runShortsClipPublisher({ bypassBreakerCheck: true }).catch(() => ({ published: 0 }));
+                  const p3 = ((lf3 as any).published ?? 0) + ((sp3 as any).published ?? 0);
+                  if (p3 > 0) {
+                    logger.info(`[QuotaReset] Phase 3 success — ${p3} video(s) published after seeding`);
+                  } else {
+                    logger.info("[QuotaReset] Phase 3 complete — items queued; hourly sweep will publish them");
+                  }
+                } catch (e: any) {
+                  logger.warn("[QuotaReset] Phase 3 failed (non-fatal):", e?.message);
+                }
+              });
             }
           }
         } finally {

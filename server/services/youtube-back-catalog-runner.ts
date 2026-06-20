@@ -278,10 +278,12 @@ export function initBackCatalogRunner(): void {
   // so the runner always gets at least one full-quota attempt per day.
   function msUntilQuotaReset(): number {
     const resetTime = getNextResetTime();
-    // Add a 5-min buffer after reset so publishers (07:00 UTC) fire first
-    const msUntilReset = resetTime.getTime() - Date.now() + 5 * 60_000;
-    // If reset is within 5 min or already past, wait 1h (next reset is tomorrow)
-    return msUntilReset > 5 * 60_000 ? msUntilReset : 23 * 60 * 60_000;
+    // Add a 2-min buffer after reset — Phase 3 in quota-reset-cron seeds the
+    // queue and kicks the pre-encoder; by T+2min items are queued and the
+    // runner fills any remaining gaps before the hourly sweep fires at T+30min.
+    const msUntilReset = resetTime.getTime() - Date.now() + 2 * 60_000;
+    // If reset is within 2 min or already past, wait 1h (next reset is tomorrow)
+    return msUntilReset > 2 * 60_000 ? msUntilReset : 23 * 60 * 60_000;
   }
 
   function scheduleNextRun(): void {
