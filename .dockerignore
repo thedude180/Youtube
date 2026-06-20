@@ -18,6 +18,9 @@ tmp/
 attached_assets/
 screenshots/
 
+# Runtime data directories — not needed in deploy image
+data/
+
 # Video / audio files anywhere in the tree
 **/*.mp4
 **/*.mp4.part

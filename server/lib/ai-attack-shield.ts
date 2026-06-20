@@ -23,7 +23,13 @@ const PROMPT_INJECTION_PATTERNS = [
   /pretend\s+(you\s+are|to\s+be)\s+(?!interested|helpful)/i,
   /disregard\s+(your|all|any)\s+(previous|prior|safety|guidelines?)/i,
   /bypass\s+(your|the|all)?\s*(filter|safety|guard|restrict)/i,
-  /jailbreak/i,
+  // "jailbreak" as a bare word is too broad — it matches legitimate AI-topic video
+  // titles like "jailbreaks and guardrail bypasses" (a common YouTube topic).
+  // Only match when it is used as an imperative targeting the model/system:
+  //   "jailbreak the AI/model/bot/system/assistant/safety filter"
+  //   "jailbreak this/me/you"
+  //   "jailbreak mode"
+  /\bjailbreak\s+(?:this|me|you|the\s+(?:ai|model|bot|llm|chatbot|system|assistant|safety\s+filter|guardrail)|mode\b)/i,
   /dan\s+mode/i,
   /developer\s+mode/i,
   /unrestricted\s+mode/i,
