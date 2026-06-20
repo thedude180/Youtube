@@ -1,6 +1,17 @@
 import OpenAI from "openai";
 import { acquireAISlot, acquireAISlotBackground, releaseAISlot, notifyRateLimit } from "./ai-semaphore";
 
+export const OPENAI_MODELS = {
+  text:        "gpt-5",
+  textLatest:  "gpt-5.1",
+  vision:      "gpt-5",
+  image:       "gpt-image-1",
+  transcribe:  "gpt-5-transcribe",
+  audio:       "gpt-audio",
+} as const;
+
+export type OpenAIModel = (typeof OPENAI_MODELS)[keyof typeof OPENAI_MODELS];
+
 let _client: OpenAI | null = null;
 let _trackedClient: OpenAI | null = null;
 let _rawDirectClient: OpenAI | null = null;
@@ -87,9 +98,9 @@ export function getOpenAIClient(): OpenAI {
     const originalCreate = baseClient.chat.completions.create.bind(baseClient.chat.completions);
 
     (baseClient.chat.completions as any).create = async function(params: any, ...args: any[]) {
-      // gpt-5 only supports the default temperature (1.0); strip any custom value.
-      // gpt-5 also requires max_completion_tokens instead of max_tokens.
-      if (params?.model === "gpt-5") {
+      // gpt-5 / gpt-5.1 only support the default temperature (1.0); strip any custom value.
+      // They also require max_completion_tokens instead of max_tokens.
+      if (params?.model === "gpt-5" || params?.model === "gpt-5.1") {
         if ("temperature" in params) {
           const { temperature: _t, ...rest } = params;
           params = rest;
@@ -144,9 +155,9 @@ export function getOpenAIClientBackground(): OpenAI {
     const originalCreate = baseClient.chat.completions.create.bind(baseClient.chat.completions);
 
     (baseClient.chat.completions as any).create = async function(params: any, ...args: any[]) {
-      // gpt-5 only supports the default temperature (1.0); strip any custom value.
-      // gpt-5 also requires max_completion_tokens instead of max_tokens.
-      if (params?.model === "gpt-5") {
+      // gpt-5 / gpt-5.1 only support the default temperature (1.0); strip any custom value.
+      // They also require max_completion_tokens instead of max_tokens.
+      if (params?.model === "gpt-5" || params?.model === "gpt-5.1") {
         if ("temperature" in params) {
           const { temperature: _t, ...rest } = params;
           params = rest;

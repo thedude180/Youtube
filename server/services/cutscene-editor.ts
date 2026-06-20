@@ -334,7 +334,7 @@ Return ONLY this JSON (no markdown, no explanation):
 }`;
 
     const resp = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5",
       max_completion_tokens: 200,
       messages: [{ role: "user", content: [{ type: "text", text: gradePrompt }, ...imageContent] }],
     });
