@@ -3988,14 +3988,17 @@ httpServer.listen(
       ].filter(s => isEnabled(s.label)), 8_000);
     });
 
-    // ── WAVE 10.5: BRAIN — ASI tiers + meta-intelligence — T+~31min (gated) ──
-    // Higher brain functions: Back Catalog ASI, Live Stream ASI, Master ASI,
-    // learning brain, loop conductor. Governs strategy; never blocks publishing.
-    // Sleeps 5min after Wave 10 (T+~26.6min): fires at T+~31.6min.
-    // These 18 deep-optimization engines run in background only; none are
-    // required for uploads — they compound learning over hours/days.
-    // Sequential: each engine is fully inited before the next one starts.
-    // 18 engines × 15s gap = ~4.5min spread; Wave 11 starts at T+~36min.
+    // ── WAVE 10.5: BRAIN — meta-intelligence tier A — T+~31.6min (gated) ───────
+    // First 20 deep-optimization engines.  None are required for publishing —
+    // they compound learning over hours/days.  Sequential so module cache grows
+    // gradually.  20 engines × 15s gap = ~5min spread; finishes at T+~36.6min.
+    //
+    // WHY SPLIT: Wave 10.5 originally loaded 34 services in one block.  Each
+    // import() grows the Node module cache permanently.  By T+35min (~14 services
+    // loaded), the cumulative heap exceeded the container OS memory ceiling and
+    // the platform issued a SIGKILL — bypassing MemoryGuardian's 42-min holdoff
+    // entirely.  Splitting into Wave 10.5 (20 engines) and Wave 10.75 (14 engines,
+    // T+50min) with a 13-min GC gap in between prevents the OS-level OOM kill.
     if (!LITE_MODE && isEnabled("meta-intelligence")) wave(async () => {
       await sleep(5 * 60_000); // Wave 10 T+~26.6min + 5min = T+~31.6min
       await sequentialBoot([
@@ -4019,6 +4022,21 @@ httpServer.listen(
         { label: "viral-prediction-engine",     fn: () => import("./services/viral-prediction-engine").then(m => { backgroundIntervals.push(...m.initViralPredictionEngine()); }).catch(slog("initViralPredictionEngine")) },
         { label: "trend-wave-interceptor",      fn: () => import("./services/trend-wave-interceptor").then(m => { backgroundIntervals.push(...m.initTrendWaveInterceptor()); }).catch(slog("initTrendWaveInterceptor")) },
         { label: "competitor-gap-scanner",      fn: () => import("./services/competitor-gap-scanner").then(m => { backgroundIntervals.push(...m.initCompetitorGapScanner()); }).catch(slog("initCompetitorGapScanner")) },
+      ], 15_000);
+      // Wave 10.5 tier A complete. Reset MemoryGuardian baseline so leak
+      // detection starts from the stable post-load heap (not the import slope).
+      memoryGuardian.resetBaseline();
+    });
+
+    // ── WAVE 10.75: BRAIN — ASI tiers + capability closure — T+~50min (gated) ──
+    // Remaining 14 ASI engines deferred until T+50min so the 13-min gap after
+    // Wave 10.5 (T+36.6min) gives the GC time to stabilise before the next
+    // batch of module imports.  Starts AFTER the MemoryGuardian 42-min holdoff
+    // has already expired, so MG will see accurate leak signals.
+    // 14 engines × 20s gap = ~4.7min spread; finishes at T+~54.7min.
+    if (!LITE_MODE && isEnabled("meta-intelligence")) wave(async () => {
+      await sleep(24.5 * 60_000); // Wave 10 T+~25.5min + 24.5min = T+~50min
+      await sequentialBoot([
         // ── ASI closed-loop trinity extensions ──────────────────────────────
         { label: "platform-compliance-brain",  fn: () => import("./services/platform-compliance-brain").then(m => m.initPlatformComplianceBrain("7210ff92-76dd-4d0a-80bb-9eb5be27508b")).catch(slog("initPlatformComplianceBrain")) },
         { label: "bayesian-knowledge-engine",  fn: () => import("./services/bayesian-knowledge").then(() => { /* Runs as brain step 9y — no interval needed */ }).catch(slog("bayesian-knowledge-engine")) },
@@ -4033,15 +4051,12 @@ httpServer.listen(
         { label: "causal-attribution-engine", fn: () => import("./services/causal-attribution-engine").then(m => { backgroundIntervals.push(m.initCausalAttributionEngine("7210ff92-76dd-4d0a-80bb-9eb5be27508b")); }).catch(slog("initCausalAttributionEngine")) },
         { label: "content-expansion-engine",  fn: () => import("./services/content-expansion-engine").then(m => { backgroundIntervals.push(m.initContentExpansionEngine("7210ff92-76dd-4d0a-80bb-9eb5be27508b")); }).catch(slog("initContentExpansionEngine")) },
         // ── Three-tier ASI architecture — closed loop governing intelligence ─
-        // Boot order: Tier 1 (T+22min) → Tier 2 (T+25min) → Master (T+30min)
-        // Each tier reports to Master via signal bus; Master pushes strategy back down.
         { label: "back-catalog-asi",          fn: () => import("./services/back-catalog-asi").then(m => { backgroundIntervals.push(m.initBackCatalogAsi()); }).catch(slog("initBackCatalogAsi")) },
         { label: "live-stream-asi",           fn: () => import("./services/live-stream-asi").then(m => { backgroundIntervals.push(m.initLiveStreamAsi()); }).catch(slog("initLiveStreamAsi")) },
         { label: "master-asi",                fn: () => import("./services/master-asi").then(m => { backgroundIntervals.push(m.initMasterAsi()); }).catch(slog("initMasterAsi")) },
-      ], 15_000);
-      // All 27 Wave 10.5 modules are now loaded. Reset the MemoryGuardian
-      // baseline so leak detection starts from the stable post-load heap level
-      // rather than the steep slope created by sequential module imports.
+      ], 20_000);
+      // Wave 10.75 complete. Reset MemoryGuardian baseline again so the second
+      // import slope doesn't look like a sustained memory leak to the detector.
       memoryGuardian.resetBaseline();
     });
 
