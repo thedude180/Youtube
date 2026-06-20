@@ -1023,6 +1023,93 @@ export function registerAdminRoutes(app: Express) {
     }
   });
 
+  // ── Helper: HTML response page for email quick-action links ─────────────────
+
+  function quickActionPage(heading: string, body: string, accentColor: string): string {
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>CreatorOS — ${heading}</title>
+  <style>
+    body{margin:0;padding:40px 20px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f9fafb;display:flex;justify-content:center}
+    .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;max-width:520px;width:100%;overflow:hidden}
+    .top{background:${accentColor};padding:20px 28px}
+    .top h1{color:#fff;margin:0;font-size:20px;font-weight:700}
+    .body{padding:28px}
+    .body p{font-size:15px;color:#374151;margin:0 0 24px;line-height:1.6}
+    .back{display:inline-block;font-size:14px;color:#6b7280;text-decoration:underline}
+    .footer{font-size:11px;color:#9ca3af;margin-top:20px}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="top"><h1>${heading}</h1></div>
+    <div class="body">
+      <p>${body}</p>
+      <a class="back" href="/admin">← Back to dashboard</a>
+      <p class="footer">CreatorOS · Self-Architect · ${new Date().toUTCString()}</p>
+    </div>
+  </div>
+</body>
+</html>`;
+  }
+
+  // ── Email quick-action (no session auth — token IS the auth) ────────────────
+  // Approve or reject a proposal directly from an email link.
+  // Token is single-use: cleared from metadata after first use.
+
+  app.get("/api/admin/service-proposals/:id/quick-action", async (req, res) => {
+    const id     = parseInt(req.params.id, 10);
+    const token  = (req.query.token  as string | undefined) ?? "";
+    const action = (req.query.action as string | undefined) ?? "";
+
+    const ok   = (msg: string) => res.status(200).send(quickActionPage("✅ Done", msg, "#16a34a"));
+    const fail = (msg: string) => res.status(400).send(quickActionPage("❌ Error", msg, "#dc2626"));
+
+    if (isNaN(id) || !token || !["approve", "reject"].includes(action)) {
+      return fail("Invalid request — missing or unknown action.");
+    }
+
+    try {
+      const { serviceProposals } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+
+      const [proposal] = await db.select({
+        id:       serviceProposals.id,
+        title:    serviceProposals.title,
+        status:   serviceProposals.status,
+        metadata: serviceProposals.metadata,
+      })
+        .from(serviceProposals)
+        .where(eq(serviceProposals.id, id))
+        .limit(1);
+
+      if (!proposal) return fail("Proposal not found.");
+      if (proposal.status !== "pending") {
+        return ok(`This proposal was already <strong>${proposal.status}</strong>. No changes made.`);
+      }
+
+      const stored = (proposal.metadata as any)?.quickActionToken ?? "";
+      if (!stored || stored !== token) return fail("Invalid or expired link.");
+
+      const newStatus = action === "approve" ? "approved" : "rejected";
+      await db.update(serviceProposals)
+        .set({
+          status:     newStatus,
+          reviewedAt: new Date(),
+          metadata:   { ...(proposal.metadata as any), quickActionToken: null, reviewedVia: "email" } as any,
+        })
+        .where(eq(serviceProposals.id, id));
+
+      const verb = action === "approve" ? "approved" : "rejected";
+      return ok(`Proposal <strong>"${proposal.title}"</strong> has been <strong>${verb}</strong>.`);
+    } catch (err: any) {
+      return fail("Server error — please try again or use the dashboard.");
+    }
+  });
+
   app.get("/api/admin/compliance-rules", async (req, res) => {
     const userId = requireAdmin(req, res);
     if (!userId) return;
