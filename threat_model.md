@@ -23,8 +23,9 @@ CreatorOS is a production-deployed Express + TypeScript backend with a React/Vit
 ## Scan Anchors
 
 - **Production entry points:** `server/index.ts`, `server/routes.ts`, `server/routes/**`, auth integration under `server/replit_integrations/auth/**`.
-- **Highest-risk areas:** OAuth/account-linking flows in `server/routes/platform.ts`, `server/platform-auth.ts`, `server/youtube.ts`; background services under `server/services/**`; any route touching tokens, publishing, payouts, or privileged maintenance.
-- **Boundary reminders:** public allowlist is narrow; most `/api` traffic is authenticated, but admin enforcement is route-local and must be checked explicitly. `/api/admin/` is governance-exempt in `server/routes.ts`, so missing `requireAdmin` is especially dangerous.
+- **Highest-risk areas:** OAuth/account-linking flows in `server/routes/platform.ts`, `server/platform-auth.ts`, `server/youtube.ts`; object-ID routes in `server/routes/content.ts`, `server/routes/stream.ts`, and `server/youtube-manager.ts`; background services under `server/services/**`; any route touching tokens, publishing, payouts, diagnostics, or privileged maintenance.
+- **Boundary reminders:** public allowlist is narrow; most `/api` traffic is authenticated, but admin enforcement is route-local and must be checked explicitly. `/api/admin/` is governance-exempt in `server/routes.ts`, so missing `requireAdmin` is especially dangerous. Numeric IDs and global list endpoints must never be treated as sufficient authority on their own.
+- **OAuth reminder:** the dedicated `/api/youtube/callback` flow is especially sensitive because it can fall back to session-bound reconnect state; future scans should verify strict `state` validation before any token exchange or account binding occurs.
 - **Usually ignore unless production-reachable:** `server/dev-*`, `/api/dev/*`, local mock/sandbox code, dev bypass behavior in `NODE_ENV=development`.
 
 ## Threat Categories
