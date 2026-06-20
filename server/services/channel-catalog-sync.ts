@@ -497,6 +497,8 @@ export async function processUnprocessedCatalog(userId: string): Promise<{
   let processed = 0;
   let scheduled = 0;
   let errors = 0;
+  // Cap repurpose calls at 3 per sync cycle to prevent budget exhaustion on boot.
+  let repurposedThisSync = 0;
   // Stagger index for fire-and-forget SEO calls: each video's SEO optimization
   // starts 8 s later than the previous one so a 50-video batch doesn't launch
   // 50 concurrent AI calls and saturate the 8/8 background queue.
@@ -631,15 +633,20 @@ export async function processUnprocessedCatalog(userId: string): Promise<{
       }
 
       // Only repurpose videos published within the last 30 days to avoid a
-      // backfill storm on historical catalog items.
+      // backfill storm on historical catalog items.  Cap at 3 repurpose calls
+      // per catalog sync cycle — each call burns ~12k tokens (3 formats × 4k).
+      // Without this cap a fresh deployment with 6+ recent videos exhausts the
+      // entire 75k daily repurpose budget within 30 min.  Remaining videos will
+      // be repurposed on the next sync cycle (catalog-sync runs every 22-24h).
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60_000);
       const isRecent = link.publishedAt && new Date(link.publishedAt) > thirtyDaysAgo;
-      if (isRecent) {
+      if (isRecent && repurposedThisSync < 3) {
         try {
           const { repurposeVideo } = await import("../repurpose-engine");
           // Fire-and-forget: don't block catalog processing on repurpose completion
           repurposeVideo(userId, dbVideo.id, ["blog", "twitter_thread", "instagram_caption"]).catch(() => undefined);
           editingResult.repurposed = true;
+          repurposedThisSync++;
         } catch (err: any) {
           logger.warn(`[${userId}] Repurpose failed for ${link.youtubeId}: ${err.message?.substring(0, 150)}`);
         }

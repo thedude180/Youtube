@@ -253,7 +253,7 @@ Return JSON:
 }`,
       }],
       response_format: { type: "json_object" },
-      max_completion_tokens: 3000,
+      max_completion_tokens: 4500,
       temperature: 0.7,
     });
 

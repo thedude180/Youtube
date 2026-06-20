@@ -6272,6 +6272,41 @@ async function migration110CreateAsiSignalTables(): Promise<void> {
   }
 }
 
+// ── Migration 111: Retry asi_signals index (Migration 110 partial index failed) ─
+// Migration 110 created the asi_signals/asi_cycle_reports/asi_strategy tables but
+// the partial index (WHERE consumed_at IS NULL) failed — likely the column was
+// already NOT NULL from db:push or a PG version constraint.  This migration creates
+// a simpler unconditional index that will always succeed, and also indexes the
+// other two tables for query performance.
+async function migration111RetryAsiSignalsIndex(): Promise<void> {
+  const FLAG = "migration:111:asi_index_retry_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    await db.execute(sql.raw(`
+      CREATE INDEX IF NOT EXISTS asi_signals_type_created_idx
+        ON asi_signals (signal_type, created_at DESC)
+    `));
+    await db.execute(sql.raw(`
+      CREATE INDEX IF NOT EXISTS asi_signals_consumed_idx
+        ON asi_signals (consumed_at)
+    `));
+    await db.execute(sql.raw(`
+      CREATE INDEX IF NOT EXISTS asi_cycle_reports_tier_idx
+        ON asi_cycle_reports (tier, created_at DESC)
+    `));
+    await db.execute(sql.raw(`
+      CREATE INDEX IF NOT EXISTS asi_strategy_key_idx
+        ON asi_strategy (strategy_key)
+    `));
+    log.info("[Migration 111] ASI indexes created successfully");
+    await setFlag(FLAG);
+  } catch (err: any) {
+    const cause = (err as any)?.cause?.message ?? "";
+    log.warn(`[Migration 111] Failed (non-fatal): ${err?.message?.slice(0, 200)} | cause: ${cause.slice(0, 200)}`);
+    await setFlag(FLAG).catch(() => {});
+  }
+}
+
 // ── Non-flagged per-boot: cancel queue items pointing to non-BF6 vault sources
 // cleanupNonBF6QueueItems() cancels items where metadata.gameName is explicitly
 // non-BF6.  But items created with null gameName (benefit-of-doubt) that point
@@ -6605,6 +6640,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration108CancelSkippedVaultSourceItems();
     await migration109FailNotFoundPushBacklogItems();
     await migration110CreateAsiSignalTables();
+    await migration111RetryAsiSignalsIndex();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips
