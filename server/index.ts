@@ -2599,17 +2599,23 @@ httpServer.listen(
         .catch(err => logger.warn("[Boot] Wave 0.52: early pipeline self-heal failed (non-fatal):", err?.message));
     });
 
-    // ── WAVE 0.55: Restore hourly token counters from DB ─────────────────────
-    // Must run before engines start so post-reboot bursts respect the cap on
-    // tokens already consumed earlier in the same hour.
+    // ── WAVE 0.55: BLOODSTREAM — quota safety + hourly token cap ─────────────
+    // First "life-support" wave. Registers the midnight quota-reset cron and
+    // restores hourly AI token counters from DB so that every engine that starts
+    // later already has the correct budget state. No heavy work here — just timer
+    // registration + a single DB read. Must run before ANY engine touches quota.
     wave(async () => {
+      // Register the midnight Pacific quota-reset cron immediately so it is
+      // never late even if later waves take longer than expected to boot.
+      initQuotaResetCron();
+
       await import("./lib/token-hourly-cap").then(async m => {
         await m.restoreHourlyUsageFromDB();
         m.startHourlyCapFlusher();
       }).catch(err => logger.warn("[Boot] hourly-token-cap restore failed (non-fatal):", err?.message));
     });
 
-    // ── WAVE 0.6: Staged startup orchestrator ─────────────────────────────────
+    // ── WAVE 0.6: VITAL ORGANS — startup orchestrator ────────────────────────
     // Runs environment validation, DB readiness, account cleanup, channel health,
     // quota recovery, queue repair, and resource health checks before all engines.
     wave(async () => {
@@ -2618,8 +2624,23 @@ httpServer.listen(
       );
     });
 
-    // ── WAVE 1: Core pipeline — seeds, autopilot, event wiring ──────────────
+    // ── WAVE 1: BLOODSTREAM — token guardian + core pipeline wiring ──────────
+    // Token guardian fires at T+30s so every downstream service has a fresh
+    // OAuth token before any YouTube API call is attempted. This is the earliest
+    // point it is safe to call Google (DB is warm, startup-orchestrator done).
     wave(() => {
+      // ── Token Guardian (T+30s) ─────────────────────────────────────────────
+      // Refresh all YouTube OAuth tokens before any publisher or catalog service
+      // starts. Repeats every 12h. Moved from Wave 8 so tokens are valid from
+      // the very first catalog import / publish attempt (T+15min).
+      setTimeout(() => {
+        import("./token-refresh").then(async m => {
+          await m.keepAliveAllTokens().catch(slog("keepAliveAllTokens-early"));
+          const iv = setInterval(() => m.keepAliveAllTokens().catch(slog("keepAliveAllTokens")), jitter(12 * 60 * 60_000));
+          backgroundIntervals.push(iv);
+        }).catch(slog("token-refresh import"));
+      }, 30_000);
+
       // Mirror youtube channel tokens to the paired youtubeshorts row immediately on every boot.
       // Both rows share the same Google OAuth account — keeping them in sync ensures the
       // shorts publisher always has a valid token without any manual reconnect step.
@@ -3410,7 +3431,7 @@ httpServer.listen(
       }))).catch(slog("startupNotifCleanup"));
     });
 
-    // ── WAVE 2: Event wiring, DLQ, content loops ─────────────────────────────
+    // ── WAVE 2: NERVOUS SYSTEM — event wiring, DLQ, content loops ───────────
     wave(() => {
       import("./services/agent-events").then(m => m.wireAgentCoordination().catch(slog("wireAgentCoordination"))).catch(slog("agent-events import"));
       const DLQ_INTERVAL_MS = parseInt(process.env.DLQ_INTERVAL_MS || "300000");
@@ -3429,7 +3450,7 @@ httpServer.listen(
       if (!LITE_MODE && isEnabled("content-loop")) import("./content-loop").then(m => m.bootContentLoops()).catch(err => logger.error("Content loop boot failed", { error: String(err) }));
     });
 
-    // ── WAVE 3: Live detection, agents, watchers ──────────────────────────────
+    // ── WAVE 3: NERVOUS SYSTEM — live detection, agents, watchers ────────────
     wave(() => {
       // Heartbeat loop — runs every 15s but each platform is internally throttled
       // to its own poll interval (YouTube 45s, Twitch 30s, Kick 45s,
@@ -3488,7 +3509,7 @@ httpServer.listen(
       });
     });
 
-    // ── WAVE 4: Stream agents, consistency — sequential 1→2→3→4 ─────────────
+    // ── WAVE 4: NERVOUS SYSTEM — stream agents, consistency (sequential) ─────
     // copyright-guardian moved to T+10min: its AI scan cycle fires immediately
     // on init and would saturate background AI slots during the boot window.
     if (!LITE_MODE) wave(async () => {
@@ -3505,7 +3526,7 @@ httpServer.listen(
       setTimeout(() => import("./services/copyright-guardian").then(m => m.bootstrapCopyrightGuardians().catch(slog("bootstrapCopyrightGuardians"))).catch(slog("copyright-guardian import")), 10 * 60_000);
     });
 
-    // ── WAVE 5: Intelligence engines batch 1 ─────────────────────────────────
+    // ── WAVE 5: NERVOUS SYSTEM — intelligence guards + threat sensors ─────────
     if (!LITE_MODE) wave(() => {
       tokenBudget.ready.then(() => {
         // Non-AI lightweight guards fire immediately
@@ -3521,7 +3542,7 @@ httpServer.listen(
       }).catch(slog("wave5-ready-gate"));
     });
 
-    // ── WAVE 6: Intelligence engines batch 2 + live agents — T+8min ─────────
+    // ── WAVE 6: NERVOUS SYSTEM — analytics engines + live stream agents — T+8min
     // Sleeps 8min before firing: analytics/AI engines would hit background AI
     // slots within seconds of boot otherwise. Live agents are event-driven and
     // only act during active streams — safe to start at T+8–9min.
@@ -3546,7 +3567,7 @@ httpServer.listen(
       ].filter(s => isEnabled(s.label)), 1_500);
     });
 
-    // ── WAVE 7: Continuity, VOD, cache, cleanup — T+20min ────────────────────
+    // ── WAVE 7: CIRCULATORY SYSTEM — continuity, VOD cache, cleanup — T+20min ─
     // Wave 6 sleeps 8min; this wave adds 12 more min → fires at T+20min.
     // (Was T+15min — pushed 5min to eliminate Wave 7/8 convergence crash window.)
     // vod-shorts-loop first run = T+20min init + 8min internal delay = T+28min.
@@ -3568,7 +3589,10 @@ httpServer.listen(
       ].filter(s => isEnabled(s.label)), 3_000);
     });
 
-    // ── WAVE 8: Content engines — marketing, daily, back-catalog ─────────────
+    // ── WAVE 8: CIRCULATORY SYSTEM — content engines + back-catalog runner ───
+    // The back-catalog runner (the queue feeder) lives here. Publishers in
+    // Wave 10 consume what this wave produces. Token guardian already ran at
+    // T+30s (Wave 1) so YouTube API calls here always have valid tokens.
     if (!LITE_MODE) wave(() => {
       if (isEnabled("weekly-report-engine")) import("./weekly-report-engine").then(m => m.initWeeklyReportEngine()).catch(slog("initWeeklyReportEngine"));
       if (isEnabled("daily-upload-digest")) import("./services/daily-upload-digest").then(m => m.initDailyUploadDigestEngine()).catch(slog("initDailyUploadDigestEngine"));
@@ -3706,13 +3730,7 @@ httpServer.listen(
         );
       }, 150_000);
 
-      // ── Midnight-Pacific Quota Reset Cron ────────────────────────────────────
-      // Fires once at the precise moment the YouTube API quota resets (midnight
-      // Pacific, handles PST/PDT).  On each tick it: (1) clears the in-memory
-      // circuit breaker, (2) runs the back catalog cycle, (3) fires both
-      // publishers.  Then re-schedules itself for the next midnight so the server
-      // never needs a restart to start a new quota day.
-      initQuotaResetCron();
+      // (quota-reset cron registered in Wave 0.55 — earlier than this wave)
 
       // ── Hourly publisher sweep ────────────────────────────────────────────────
       // The quota reset cron only fires once at midnight Pacific.  Items that
@@ -3872,14 +3890,7 @@ httpServer.listen(
       // Re-enable once quota increase is approved.
       // initChannelBrandSync();
 
-      import("./token-refresh").then(async m => {
-        // Delay first token keep-alive by 5 minutes so it doesn't fire during
-        // the startup DB thundering herd from waves 1–8.
-        await new Promise(r => setTimeout(r, 5 * 60_000));
-        await m.keepAliveAllTokens().catch(slog("keepAliveAllTokens"));
-        const iv = setInterval(() => m.keepAliveAllTokens().catch(slog("keepAliveAllTokens")), jitter(12 * 60 * 60_000));
-        backgroundIntervals.push(iv);
-      }).catch(slog("token-refresh import"));
+      // (token guardian + 12h refresh interval registered in Wave 1 — earlier than this wave)
 
       // Only run the auto-publish poller in production. In dev the poller would
       // try to upload to YouTube with no OAuth token and permanently fail real
@@ -3920,7 +3931,7 @@ httpServer.listen(
       setTimeout(() => import("./services/perpetual-downloader").then(m => m.initPerpetualDownloader()).catch(slog("perpetual-downloader import")), 120_000);
     });
 
-    // ── WAVE 9: Advanced engines — T+20min ───────────────────────────────────
+    // ── WAVE 9: MUSCLES — performance + growth engines — T+20min ─────────────
     // Sleeps 5min after Wave 8 (~T+15min): fires at T+20min.
     // Prevents self-improvement, growth-flywheel, game-detection from competing
     // with the publisher pipeline and Wave 8 AI services for background slots.
@@ -3947,7 +3958,9 @@ httpServer.listen(
       ].filter(s => isEnabled(s.label)), 5_000);
     });
 
-    // ── WAVE 10: Autonomous command engines + publishers — T+25min ───────────
+    // ── WAVE 10: HEARTBEAT — publishers + autonomous command engines — T+25min ─
+    // THE most critical wave: Shorts + Long-Form publishers post to YouTube here.
+    // Like the heartbeat — everything upstream exists to keep this beating.
     // Sleeps 5min after Wave 9 (T+20min): fires at T+25min.
     // Publishers listed FIRST so they're registered before heavy AI engines.
     // Sequential: each engine is fully inited before the next one starts.
@@ -3975,7 +3988,9 @@ httpServer.listen(
       ].filter(s => isEnabled(s.label)), 8_000);
     });
 
-    // ── WAVE 10.5: Autonomous meta-intelligence engines — T+30min (gated) ─────
+    // ── WAVE 10.5: BRAIN — ASI tiers + meta-intelligence — T+~31min (gated) ──
+    // Higher brain functions: Back Catalog ASI, Live Stream ASI, Master ASI,
+    // learning brain, loop conductor. Governs strategy; never blocks publishing.
     // Sleeps 5min after Wave 10 (T+~26.6min): fires at T+~31.6min.
     // These 18 deep-optimization engines run in background only; none are
     // required for uploads — they compound learning over hours/days.
@@ -4030,7 +4045,10 @@ httpServer.listen(
       memoryGuardian.resetBaseline();
     });
 
-    // ── WAVE 11: Self-healing, webhook pipeline, health brain — T+40min ──────
+    // ── WAVE 11: IMMUNE SYSTEM — self-healing, health brain — T+40min ────────
+    // Watchdogs, resilience monitors, health brain. Detects and repairs damage
+    // to the system autonomously — the immune system that keeps everything else
+    // running even when individual components fail.
     // NOTE: When meta-intelligence is disabled (Wave 10.5 skipped), the wave chain
     // advances directly from Wave 10 (~T+25.5min) to Wave 11. A 5-min sleep here
     // would fire Wave 11 at T+30.5min, colliding with back-catalog runner
@@ -4225,7 +4243,7 @@ httpServer.listen(
       logger.info("[Boot] SEQUENTIAL BOOT COMPLETE — all 50+ engines online, each stage started after the previous finished");
     });
 
-    // ── WAVE 12: Autonomous Social Media Company — job handlers ──────────────
+    // ── WAVE 12: SOCIAL CORTEX — autonomous social media job handlers ─────────
     if (!LITE_MODE) wave(async () => {
       try {
         // Register job handlers for all autonomous job types
