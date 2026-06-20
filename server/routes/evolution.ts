@@ -1,6 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { getEvolutionStatus, runEvolutionCycle } from "../services/infinite-evolution-engine";
 import { getCapabilityExpansionStatus, runCapabilityExpansionCycle } from "../services/autonomous-capability-engine";
+import { requireAuth } from "./helpers";
 import { db } from "../db";
 import {
   discoveredStrategies, systemImprovements, selfReflectionJournal,
@@ -14,8 +15,8 @@ export function registerEvolutionRoutes(app: Express): void {
   /** Single aggregated endpoint powering the System Growth page. */
   app.get("/api/system-growth/overview", async (req: Request, res: Response) => {
     try {
-      const userId = (req as any).user?.id;
-      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const userId = requireAuth(req, res);
+      if (!userId) return;
 
       const since7d = new Date(Date.now() - 7 * 86400_000);
       const since30d = new Date(Date.now() - 30 * 86400_000);
@@ -151,8 +152,8 @@ export function registerEvolutionRoutes(app: Express): void {
   /** Capability expansion status — gaps found and filled by the system itself. */
   app.get("/api/system-growth/capability-expansion", async (req: Request, res: Response) => {
     try {
-      const userId = (req as any).user?.id;
-      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const userId = requireAuth(req, res);
+      if (!userId) return;
       const status = await getCapabilityExpansionStatus(userId);
       res.json(status);
     } catch (err: any) {
@@ -163,8 +164,8 @@ export function registerEvolutionRoutes(app: Express): void {
   /** Manually trigger a capability expansion cycle. */
   app.post("/api/system-growth/capability-expansion/run", async (req: Request, res: Response) => {
     try {
-      const userId = (req as any).user?.id;
-      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const userId = requireAuth(req, res);
+      if (!userId) return;
       await runCapabilityExpansionCycle();
       res.json({ success: true });
     } catch (err: any) {
@@ -174,8 +175,8 @@ export function registerEvolutionRoutes(app: Express): void {
 
   app.get("/api/evolution/status", async (req: Request, res: Response) => {
     try {
-      const userId = (req as any).user?.id;
-      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const userId = requireAuth(req, res);
+      if (!userId) return;
 
       const status = await getEvolutionStatus(userId);
       res.json(status);
@@ -186,8 +187,8 @@ export function registerEvolutionRoutes(app: Express): void {
 
   app.post("/api/evolution/run", async (req: Request, res: Response) => {
     try {
-      const userId = (req as any).user?.id;
-      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const userId = requireAuth(req, res);
+      if (!userId) return;
 
       await runEvolutionCycle();
       res.json({ success: true, message: "Evolution cycle completed" });
@@ -198,8 +199,8 @@ export function registerEvolutionRoutes(app: Express): void {
 
   app.get("/api/evolution/thumbnail-intelligence", async (req: Request, res: Response) => {
     try {
-      const userId = (req as any).user?.id;
-      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const userId = requireAuth(req, res);
+      if (!userId) return;
 
       const { getIntelligenceStats } = await import("../services/thumbnail-intelligence");
       const stats = await getIntelligenceStats(userId);
@@ -211,8 +212,8 @@ export function registerEvolutionRoutes(app: Express): void {
 
   app.post("/api/evolution/thumbnail-research", async (req: Request, res: Response) => {
     try {
-      const userId = (req as any).user?.id;
-      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const userId = requireAuth(req, res);
+      if (!userId) return;
 
       const { gameName } = req.body;
       if (!gameName) return res.status(400).json({ error: "gameName required" });
@@ -228,8 +229,8 @@ export function registerEvolutionRoutes(app: Express): void {
   /** Internet Benchmark — stats and recent runs. */
   app.get("/api/system-growth/internet-benchmarks", async (req: Request, res: Response) => {
     try {
-      const userId = (req as any).user?.id;
-      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const userId = requireAuth(req, res);
+      if (!userId) return;
       const { getInternetBenchmarkStats } = await import("../services/internet-benchmark-engine");
       const stats = await getInternetBenchmarkStats(userId);
       res.json(stats);
@@ -241,8 +242,8 @@ export function registerEvolutionRoutes(app: Express): void {
   /** Trigger an immediate internet benchmark scan for the current user. */
   app.post("/api/system-growth/internet-benchmarks/run", async (req: Request, res: Response) => {
     try {
-      const userId = (req as any).user?.id;
-      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const userId = requireAuth(req, res);
+      if (!userId) return;
       const { runInternetBenchmarkForUser } = await import("../services/internet-benchmark-engine");
       const result = await runInternetBenchmarkForUser(userId);
       res.json({ success: true, ...result });

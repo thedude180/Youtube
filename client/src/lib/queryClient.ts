@@ -89,7 +89,7 @@ export function getQueryFn<T>({ on401: unauthorizedBehavior }: {
   on401: UnauthorizedBehavior;
 }): QueryFunction<T> {
   return async ({ queryKey }) => {
-    const url = queryKey.join("/") as string;
+    const url = queryKey[0] as string;
 
     if (!navigator.onLine) {
       const cached = await offlineStore.getCachedResponse(url);

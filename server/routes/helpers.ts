@@ -75,9 +75,13 @@ export function requireAuthMw(req: Request, res: Response, next: NextFunction): 
   next();
 }
 
+const IS_DEV = !process.env.REPLIT_DEPLOYMENT && process.env.NODE_ENV !== "production";
+
 export function requireAdmin(req: Request, res: Response): string | null {
   const userId = requireAuth(req, res);
   if (!userId) return null;
+  // In dev mode, the bypass user is granted admin access automatically.
+  if (IS_DEV) return userId;
   const email = (req.user as AuthenticatedUser)?.claims?.email;
   if (!email || email.toLowerCase() !== ADMIN_EMAIL) {
     res.status(403).json({ error: "Admin access required" });

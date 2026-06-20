@@ -2,7 +2,7 @@ import type { Express, Request, Response } from "express";
 import { getNicheResearchData, runNicheResearchCycle } from "../services/niche-video-researcher";
 
 function requireAuth(req: Request, res: Response): string | null {
-  const userId = (req as any).session?.userId ?? (req as any).user?.id;
+  const userId = (req as any).user?.claims?.sub;
   if (!userId) { res.status(401).json({ error: "Unauthorized" }); return null; }
   return userId;
 }

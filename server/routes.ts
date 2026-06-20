@@ -1144,6 +1144,23 @@ export async function registerRoutes(
     }
   });
 
+  // ── Channel sync shortcut — called by Dashboard "Refresh channels" button ────
+  app.post("/api/sync/channels", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { refreshYouTubeChannelInfo } = await import("./google-auth");
+      const result = await refreshYouTubeChannelInfo(userId);
+      if (!result.success) {
+        // In dev mode or when no token, return a soft success so the UI doesn't error
+        return res.json({ ok: true, synced: 0, message: result.error ?? "No YouTube channel connected" });
+      }
+      res.json({ ok: true, synced: 1, channelName: result.channelName, subscriberCount: result.subscriberCount });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message ?? "Sync failed" });
+    }
+  });
+
   // ── YOUTUBE-ONLY MODE: Disabled legacy platform routes ──────────────────────
   // These catch routes return 410 Gone instead of crashing, so old bookmarks
   // and cached frontend calls get a clean JSON response rather than a 404 or 500.

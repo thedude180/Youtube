@@ -1,4 +1,5 @@
 import type { Express, Request, Response } from "express";
+import { requireAuth } from "./helpers";
 import { createBusinessProfile, getEmpireOverview, getIndustryRegistry, adaptBusinessToIndustry, runEmpireCycle, assessExpansionReadiness } from "../services/empire-brain";
 import { db } from "../db";
 import { businessProfiles, businessOperations, crossBusinessInsights, industryPlaybooks, empireMetrics } from "@shared/schema";
@@ -7,8 +8,8 @@ import { eq, and, desc } from "drizzle-orm";
 export function registerEmpireRoutes(app: Express): void {
   app.get("/api/empire/overview", async (req: Request, res: Response) => {
     try {
-      const userId = (req as any).user?.id;
-      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const userId = requireAuth(req, res);
+      if (!userId) return;
 
       const overview = await getEmpireOverview(userId);
       res.json(overview);
@@ -28,8 +29,8 @@ export function registerEmpireRoutes(app: Express): void {
 
   app.post("/api/empire/businesses", async (req: Request, res: Response) => {
     try {
-      const userId = (req as any).user?.id;
-      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const userId = requireAuth(req, res);
+      if (!userId) return;
 
       const { name, industry, businessType, description } = req.body;
       if (!name || !industry || !businessType) {
@@ -45,8 +46,8 @@ export function registerEmpireRoutes(app: Express): void {
 
   app.get("/api/empire/businesses/:id", async (req: Request, res: Response) => {
     try {
-      const userId = (req as any).user?.id;
-      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const userId = requireAuth(req, res);
+      if (!userId) return;
 
       const businessId = parseInt(req.params.id as string);
       const [business] = await db.select().from(businessProfiles)
@@ -80,8 +81,8 @@ export function registerEmpireRoutes(app: Express): void {
 
   app.post("/api/empire/businesses/:id/adapt", async (req: Request, res: Response) => {
     try {
-      const userId = (req as any).user?.id;
-      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const userId = requireAuth(req, res);
+      if (!userId) return;
 
       const businessId = parseInt(req.params.id as string);
       await adaptBusinessToIndustry(businessId, userId);
@@ -93,8 +94,8 @@ export function registerEmpireRoutes(app: Express): void {
 
   app.post("/api/empire/cycle", async (req: Request, res: Response) => {
     try {
-      const userId = (req as any).user?.id;
-      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const userId = requireAuth(req, res);
+      if (!userId) return;
 
       await runEmpireCycle();
       res.json({ success: true, message: "Empire cycle completed" });
@@ -105,8 +106,8 @@ export function registerEmpireRoutes(app: Express): void {
 
   app.get("/api/empire/insights", async (req: Request, res: Response) => {
     try {
-      const userId = (req as any).user?.id;
-      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const userId = requireAuth(req, res);
+      if (!userId) return;
 
       const insights = await db.select().from(crossBusinessInsights)
         .where(eq(crossBusinessInsights.userId, userId))
@@ -121,8 +122,8 @@ export function registerEmpireRoutes(app: Express): void {
 
   app.get("/api/empire/expansion-readiness", async (req: Request, res: Response) => {
     try {
-      const userId = (req as any).user?.id;
-      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const userId = requireAuth(req, res);
+      if (!userId) return;
 
       const readiness = await assessExpansionReadiness(userId);
       res.json(readiness);
@@ -133,8 +134,8 @@ export function registerEmpireRoutes(app: Express): void {
 
   app.get("/api/empire/metrics", async (req: Request, res: Response) => {
     try {
-      const userId = (req as any).user?.id;
-      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const userId = requireAuth(req, res);
+      if (!userId) return;
 
       const metrics = await db.select().from(empireMetrics)
         .where(eq(empireMetrics.userId, userId))

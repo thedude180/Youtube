@@ -13,16 +13,16 @@ export function registerSocialExpansionRoutes(app: Express): void {
 
   // Full expansion status — used by dashboard panel
   app.get("/api/social/expansion-status", requireAuth, asyncHandler(async (req: Request, res: Response) => {
-    const userId = (req as any).user?.id;
-    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const status = await getPlatformExpansionStatus(userId);
     res.json(status);
   }));
 
   // YouTube maturity score only (lightweight endpoint)
   app.get("/api/social/youtube-maturity", requireAuth, asyncHandler(async (req: Request, res: Response) => {
-    const userId = (req as any).user?.id;
-    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const maturity = await scoreYouTubeMaturity(userId);
     res.json(maturity);
   }));
@@ -45,15 +45,15 @@ export function registerSocialExpansionRoutes(app: Express): void {
 
   // Get or set platform goals
   app.get("/api/social/platform-goals/:platform", requireAuth, asyncHandler(async (req: Request, res: Response) => {
-    const userId = (req as any).user?.id;
-    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const goals = await getPlatformGoals(userId, req.params.platform as string);
     res.json(goals);
   }));
 
   app.post("/api/social/platform-goals", requireAuth, asyncHandler(async (req: Request, res: Response) => {
-    const userId = (req as any).user?.id;
-    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const { platform, postsPerDay, postsPerWeek, targetFollowers, active } = req.body as {
       platform: string;
       postsPerDay?: number;

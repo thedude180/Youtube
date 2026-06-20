@@ -325,6 +325,9 @@ async function resetDevPipelineData(): Promise<void> {
       metadata: drizzleSql`'{}'::jsonb`,
     });
 
+    // Delete clip_virality_scores first — it has an FK to content_clips
+    const { clipViralityScores } = await import("@shared/schema");
+    await db.delete(clipViralityScores);
     await db.delete(streamEditJobs);
     await db.delete(studioVideos);
     await db.delete(autopilotQueue);
