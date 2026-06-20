@@ -65,7 +65,7 @@ export async function logSystemIncident(incident: NewIncident): Promise<void> {
       service:         incident.service,
       rootCause:       incident.rootCause,
       fixDescription:  incident.fixDescription ?? "",
-      lesson:          incident.lesson,
+      lesson:          incident.lesson ?? "",
       migrationNumber: incident.migrationNumber ?? null,
       severity:        incident.severity ?? "high",
       crashesPerDay:   incident.crashesPerDay ?? null,

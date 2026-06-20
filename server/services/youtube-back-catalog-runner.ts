@@ -61,6 +61,7 @@ let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 let running = false;
 let paused = false;
 let _lastRunDeferred = false; // true when last cycle was skipped due to memory/phase pressure
+let _consecutiveDeferrals = 0; // counts consecutive phase/AI-semaphore deferrals; bypasses gate after limit
 let lastRunAt:      Date | null = null;
 let nextRunAt:      Date | null = null;
 let lastRunResult:  { usersRun: number; errors: number; queueDepth?: number } | null = null;
@@ -147,26 +148,43 @@ export async function runBackCatalogForAllEligibleUsers(): Promise<{ usersRun: n
   try {
     const { canRunHeavyWork, getSystemPhase } = await import("../lib/system-load");
     if (!canRunHeavyWork()) {
-      logger.info(`[BackCatalogRunner] Deferred — system phase is "${getSystemPhase()}" (need steady). Will retry in 5 min.`);
-      _lastRunDeferred = true;
-      return { usersRun: 0, errors: 0 };
+      _consecutiveDeferrals++;
+      // After 12 consecutive deferrals (~60 min at 5-min retries), bypass the phase/AI gate.
+      // The catalog import is critical — blocking it indefinitely starves the entire pipeline.
+      // Memory and quota gates above are kept; only the AI-slot/phase pressure gate is bypassed.
+      const MAX_DEFERRALS = 12;
+      if (_consecutiveDeferrals <= MAX_DEFERRALS) {
+        logger.warn(
+          `[BackCatalogRunner] Deferred (${_consecutiveDeferrals}/${MAX_DEFERRALS}) — system phase is "${getSystemPhase()}". ` +
+          `Will retry in 5 min.`
+        );
+        _lastRunDeferred = true;
+        return { usersRun: 0, errors: 0 };
+      }
+      logger.warn(
+        `[BackCatalogRunner] Phase gate bypassed after ${_consecutiveDeferrals} consecutive deferrals — ` +
+        `forcing catalog import (phase=${getSystemPhase()}).`
+      );
+    } else {
+      _consecutiveDeferrals = 0; // reset counter when system is healthy
     }
   } catch { }
 
   const userIds = await getEligibleUserIds();
 
   if (userIds.length === 0) {
-    logger.info("[BackCatalogRunner] No eligible users found (no connected YouTube channels)");
+    logger.warn("[BackCatalogRunner] No eligible users found (no connected YouTube channels)");
     return { usersRun: 0, errors: 0 };
   }
 
-  // Passed all deferral gates — mark as not deferred
+  // Passed all deferral gates — mark as not deferred and reset consecutive counter
   _lastRunDeferred = false;
+  _consecutiveDeferrals = 0;
 
   // Record actual first execution (not just when setTimeout fired)
   import("../lib/boot-registry").then(({ recordBootStart }) => recordBootStart("back-catalog-runner")).catch(() => {});
 
-  logger.info(`[BackCatalogRunner] Starting back catalog cycle — ${userIds.length} eligible user(s)`);
+  logger.warn(`[BackCatalogRunner] Starting back catalog cycle — ${userIds.length} eligible user(s)`);
 
   let usersRun = 0;
   let errors = 0;
@@ -256,7 +274,7 @@ export async function runBackCatalogForAllEligibleUsers(): Promise<{ usersRun: n
     })
   ).catch(() => {});
 
-  logger.info(`[BackCatalogRunner] All users complete — ran: ${usersRun}, errors: ${errors}`);
+  logger.warn(`[BackCatalogRunner] All users complete — ran: ${usersRun}, errors: ${errors}`);
   return { usersRun, errors };
 }
 
@@ -276,7 +294,7 @@ export function initBackCatalogRunner(): void {
     return;
   }
 
-  logger.info(`[BackCatalogRunner] Scheduled — first run in ${Math.round(STARTUP_DELAY_MS / 60_000)} min, then adaptive (1h–24h based on queue depth)`);
+  logger.warn(`[BackCatalogRunner] Scheduled — first run in ${Math.round(STARTUP_DELAY_MS / 60_000)} min, then adaptive (1h–24h based on queue depth)`);
 
   // Recursive setTimeout — interval shrinks when queue is thin, expands when full.
   // When the quota breaker is active, override the adaptive interval and instead
@@ -300,7 +318,7 @@ export function initBackCatalogRunner(): void {
     if (_lastRunDeferred) {
       const retryMs = 5 * 60_000;
       nextRunAt = new Date(Date.now() + retryMs);
-      logger.info("[BackCatalogRunner] Last run was deferred — retrying in 5 min");
+      logger.warn(`[BackCatalogRunner] Last run was deferred (${_consecutiveDeferrals} total) — retrying in 5 min`);
       repeatTimer = setTimeout(async () => {
         if (running) { scheduleNextRun(); return; }
         running = true;
@@ -364,7 +382,7 @@ export function initBackCatalogRunner(): void {
   }
 
   startupTimer = setTimeout(async () => {
-    logger.info("[BackCatalogRunner] Startup delay complete — running first back catalog cycle");
+    logger.warn("[BackCatalogRunner] Startup delay complete — running first back catalog cycle");
 
     if (running) {
       logger.warn("[BackCatalogRunner] Already running — skipping startup fire");

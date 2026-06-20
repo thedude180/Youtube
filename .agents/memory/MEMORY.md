@@ -6,6 +6,7 @@
 - [VOD cycling failReason guard](vod-cycling-failreason-guard.md) — Bug B restoration (index.ts) must exclude failReason LIKE 'migration-%'; per-boot cleanups cancel items with that prefix.
 - [Live-detection DB circuit breaker](live-detection-circuit-breaker.md) — server/services/live-detection.ts: _liveDetectionDbBackoffUntil; 3-min backoff when channels query times out.
 - [System load signal hub](system-load-hub.md) — server/lib/system-load.ts; canRunHeavyWork()/signalBootComplete()/pushLoadSignal(); back-catalog + orchestrator + brain all gate on phase="steady".
+- [Runner log level + deferral bypass](runner-log-level-deferral.md) — deploy logs capture WARN+ only; runner lifecycle logs MUST be WARN; _consecutiveDeferrals bypasses AI-slot gate after 12 retries (~60 min).
 - [TS incremental cache stale](ts-incremental-cache-stale.md) — typecheck reports pre-edit errors at same line even after file updated; fix: rm -f ./node_modules/typescript/tsbuildinfo then restart.
 - [autopilot_queue has no content_type column](autopilot-queue-content-type.md) — content type lives in metadata->>'contentType' (JSONB), NOT a bare column; any raw SQL on this table must use the accessor.
 - [System health monitor + learning loop](system-health-monitor.md) — server/services/system-health-monitor.ts; 5 checks → logIncidentOnce → brain daily → masterKnowledgeBank.
