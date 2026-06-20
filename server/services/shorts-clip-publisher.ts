@@ -691,6 +691,58 @@ export async function runShortsClipPublisher(opts?: { bypassBreakerCheck?: boole
                   logger.debug(`[ShortsPublisher] Compliance check non-fatal: ${cErr?.message?.slice(0, 80)}`);
                 }
 
+                // ── Duplicate-upload guard ────────────────────────────────
+                // Scenario 1 — crash recovery: a previous run already uploaded
+                // this exact item to YouTube but crashed before the "published"
+                // DB update.  The eager-persist below stores the YouTube ID in
+                // metadata immediately after upload, so we can detect this here
+                // and skip the re-upload (which would cost another 1,600 quota units
+                // and create a duplicate video on the channel).
+                const _existingYtId = typeof itemMeta.youtubeVideoId === "string" && itemMeta.youtubeVideoId
+                  ? itemMeta.youtubeVideoId : null;
+                if (_existingYtId) {
+                  try {
+                    const _crVerify = await verifyUploadedToYouTube(ytChannel.id, _existingYtId);
+                    if (_crVerify.verified) {
+                      logger.info(`[ShortsPublisher] Crash-recovery: item ${item.id} was already uploaded as ytId=${_existingYtId} — marking published, skipping re-upload`);
+                      await db.update(autopilotQueue).set({
+                        status: "published",
+                        publishedAt: new Date(),
+                        metadata: { ...itemMeta } as any,
+                      }).where(eq(autopilotQueue.id, item.id));
+                      published++;
+                      clearShortScheduleSaturation(item.userId);
+                      continue;
+                    }
+                    // Video ID in metadata but not on YouTube — stale entry; fall through to re-upload
+                    logger.warn(`[ShortsPublisher] Crash-recovery: ytId=${_existingYtId} not found on YouTube — stale ID, proceeding with fresh upload`);
+                  } catch (_crErr: any) {
+                    logger.warn(`[ShortsPublisher] Crash-recovery verify failed (non-fatal): ${_crErr?.message?.slice(0, 80)} — proceeding with upload`);
+                  }
+                }
+                // Scenario 2 — sibling duplicate: another queue item with the
+                // same source video was already published.  Cancel this one.
+                if (item.sourceVideoId != null) {
+                  const [_sibling] = await db.select({ id: autopilotQueue.id, meta: autopilotQueue.metadata })
+                    .from(autopilotQueue)
+                    .where(and(
+                      eq(autopilotQueue.sourceVideoId, item.sourceVideoId),
+                      eq(autopilotQueue.status, "published"),
+                      sql`${autopilotQueue.id} != ${item.id}`,
+                      sql`(${autopilotQueue.metadata}->>'youtubeVideoId') IS NOT NULL`,
+                    )).limit(1);
+                  if (_sibling) {
+                    const _dupYtId = (_sibling.meta as any)?.youtubeVideoId as string;
+                    logger.warn(`[ShortsPublisher] Duplicate detected: item ${item.id} shares source_video_id=${item.sourceVideoId} with published item ${_sibling.id} (ytId=${_dupYtId}) — cancelling`);
+                    await db.update(autopilotQueue).set({
+                      status: "cancelled",
+                      metadata: { ...itemMeta, failReason: `duplicate:item${_sibling.id}:${_dupYtId}` } as any,
+                    }).where(eq(autopilotQueue.id, item.id));
+                    skipped++;
+                    continue;
+                  }
+                }
+
                 result = await uploadToYouTube({
                   channelId: ytChannel.id,
                   title: safeTitle,
@@ -707,6 +759,20 @@ export async function runShortsClipPublisher(opts?: { bypassBreakerCheck?: boole
                   // pre-encoder mixed AI-generated music from the creative library.
                   selfDeclaredMadeWithAI: !!(item.metadata as any)?.hasAiMusic,
                 });
+
+                // ── Eager YouTube ID persist ──────────────────────────────
+                // Store the YouTube ID in the queue item metadata IMMEDIATELY
+                // after the upload API call returns — before verify, before
+                // the "published" update, before anything else.  If the process
+                // is killed (OOM or restart) between here and the "published"
+                // update, the ID is still persisted and the duplicate-upload
+                // guard above will detect it on the next run and skip re-upload.
+                if ((result as any).youtubeId) {
+                  await db.update(autopilotQueue)
+                    .set({ metadata: { ...itemMeta, youtubeVideoId: (result as any).youtubeId } as any })
+                    .where(eq(autopilotQueue.id, item.id))
+                    .catch((_eagerErr: any) => logger.warn(`[ShortsPublisher] Eager ID persist failed (non-fatal): ${_eagerErr?.message?.slice(0, 80)}`));
+                }
 
                 if (result.success) {
                   if (shortIsScheduled) {

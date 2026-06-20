@@ -440,6 +440,56 @@ export async function runLongFormClipPublisher(opts?: { bypassBreakerCheck?: boo
           logger.debug(`[LFPublisher] Compliance check non-fatal error: ${cErr?.message?.slice(0, 80)}`);
         }
 
+        // ── Duplicate-upload guard ────────────────────────────────────────
+        // Scenario 1 — crash recovery: a previous run uploaded this item to
+        // YouTube but crashed before the "published" DB update.  The eager-
+        // persist below stores the YouTube ID in metadata immediately after
+        // upload, so we can detect it here and skip the 1,600-unit re-upload
+        // and the duplicate video it would create.
+        const _existingLFYtId = typeof itemMeta.youtubeVideoId === "string" && itemMeta.youtubeVideoId
+          ? itemMeta.youtubeVideoId : null;
+        if (_existingLFYtId) {
+          try {
+            const _crVerify = await verifyUploadedToYouTube(ytChannel.id, _existingLFYtId);
+            if (_crVerify.verified) {
+              logger.info(`[LFPublisher] Crash-recovery: item ${item.id} was already uploaded as ytId=${_existingLFYtId} — marking published, skipping re-upload`);
+              await db.update(autopilotQueue).set({
+                status: "published",
+                publishedAt: new Date(),
+                metadata: { ...itemMeta } as any,
+              }).where(eq(autopilotQueue.id, item.id));
+              published++;
+              clearLongFormScheduleSaturation(item.userId);
+              continue;
+            }
+            logger.warn(`[LFPublisher] Crash-recovery: ytId=${_existingLFYtId} not found on YouTube — stale ID, proceeding with fresh upload`);
+          } catch (_crErr: any) {
+            logger.warn(`[LFPublisher] Crash-recovery verify failed (non-fatal): ${_crErr?.message?.slice(0, 80)} — proceeding with upload`);
+          }
+        }
+        // Scenario 2 — sibling duplicate: another queue item with the same
+        // source video was already published.  Cancel this one.
+        if (item.sourceVideoId != null) {
+          const [_lfSibling] = await db.select({ id: autopilotQueue.id, meta: autopilotQueue.metadata })
+            .from(autopilotQueue)
+            .where(and(
+              eq(autopilotQueue.sourceVideoId, item.sourceVideoId),
+              eq(autopilotQueue.status, "published"),
+              sql`${autopilotQueue.id} != ${item.id}`,
+              sql`(${autopilotQueue.metadata}->>'youtubeVideoId') IS NOT NULL`,
+            )).limit(1);
+          if (_lfSibling) {
+            const _lfDupYtId = (_lfSibling.meta as any)?.youtubeVideoId as string;
+            logger.warn(`[LFPublisher] Duplicate detected: item ${item.id} shares source_video_id=${item.sourceVideoId} with published item ${_lfSibling.id} (ytId=${_lfDupYtId}) — cancelling`);
+            await db.update(autopilotQueue).set({
+              status: "cancelled",
+              metadata: { ...itemMeta, failReason: `duplicate:item${_lfSibling.id}:${_lfDupYtId}` } as any,
+            }).where(eq(autopilotQueue.id, item.id));
+            skipped++;
+            continue;
+          }
+        }
+
         const uploadResult = await uploadVideoToYouTube(ytChannel.id, {
           title,
           description,
@@ -458,6 +508,20 @@ export async function runLongFormClipPublisher(opts?: { bypassBreakerCheck?: boo
           // Set true when the pre-encoder mixed AI-generated music from the creative library.
           selfDeclaredMadeWithAI: !!(itemMeta?.hasAiMusic),
         });
+
+        // ── Eager YouTube ID persist ──────────────────────────────────────
+        // Store the YouTube ID in the queue item metadata IMMEDIATELY after
+        // the upload API call returns — before verify, before "published"
+        // update, before anything else.  If the process is killed (OOM or
+        // restart) between here and the "published" update, the ID is still
+        // persisted and the duplicate-upload guard above will detect it on
+        // the next run and skip the re-upload.
+        if (uploadResult?.youtubeId) {
+          await db.update(autopilotQueue)
+            .set({ metadata: { ...itemMeta, youtubeVideoId: uploadResult.youtubeId } as any })
+            .where(eq(autopilotQueue.id, item.id))
+            .catch((_eagerErr: any) => logger.warn(`[LFPublisher] Eager ID persist failed (non-fatal): ${_eagerErr?.message?.slice(0, 80)}`));
+        }
 
         if (lfIsScheduled) {
           logger.info(`[YouTubeSchedule] Long-form uploaded as private scheduled publish — publishAt ${lfScheduledAt!.toISOString()}`);
