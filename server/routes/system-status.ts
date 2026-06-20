@@ -20,6 +20,8 @@ export function registerSystemStatusRoutes(app: Express): void {
    * Full system health snapshot.
    */
   app.get("/api/system/status", async (_req: Request, res: Response) => {
+    const adminId = requireAdmin(_req, res);
+    if (!adminId) return;
     try {
       const [
         { StartupOrchestrator } ,

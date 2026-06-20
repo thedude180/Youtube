@@ -449,7 +449,7 @@ export function registerPillarRoutes(app: Express): void {
   // ==========================================
 
   app.get("/api/admin/pillar-engines", asyncHandler(async (req: Request, res: Response) => {
-    const userId = requireAuth(req, res);
+    const userId = requireAdmin(req, res);
     if (!userId) return;
     res.json({
       community: getCommunityEngineStatus(),

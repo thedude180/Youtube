@@ -14,7 +14,7 @@ import {
 } from "@shared/schema";
 import { db } from "../db";
 import { storage } from "../storage";
-import { requireAuth, requireTier, parseNumericId, asyncHandler, rateLimitEndpoint, getUserEmail, getUserFirstName, getUserLastName } from "./helpers";
+import { requireAuth, requireAdmin, requireTier, parseNumericId, asyncHandler, rateLimitEndpoint, getUserEmail, getUserFirstName, getUserLastName } from "./helpers";
 import { cached } from "../lib/cache";
 import { sendSSEEvent } from "./events";
 import {
@@ -964,7 +964,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.get(api.jobs.list.path, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = requireAdmin(req, res);
     if (!userId) return;
     const jobs = await storage.getJobs();
     res.json(jobs);
@@ -1004,7 +1004,7 @@ export function registerContentRoutes(app: Express) {
   app.get(api.auditLogs.list.path, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const logs = await storage.getAuditLogs();
+    const logs = await storage.getAuditLogsByUser(userId);
     res.json(logs);
   }));
 

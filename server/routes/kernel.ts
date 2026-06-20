@@ -46,10 +46,14 @@ import { validateAgentUIPayload, REGISTERED_AGENTS } from "../kernel/agent-ui-co
 import { getAvailableChains, getChainModels } from "../kernel/model-fallback-chain";
 
 import { createLogger } from "../lib/logger";
+import { requireAdmin as _requireAdmin } from "./helpers";
 
 const logger = createLogger("kernel");
 function getUserId(req: Request): string | null {
   return (req as any).user?.id || (req as any).user?.claims?.sub || null;
+}
+function requireAdmin(req: Request, res: Response): string | null {
+  return _requireAdmin(req, res);
 }
 
 const ONBOARDING_STEPS = [
@@ -405,8 +409,8 @@ export function registerKernelRoutes(app: Express) {
   });
 
   app.get("/api/admin/system-pulse", async (req: Request, res: Response) => {
-    const userId = getUserId(req);
-    if (!userId) return res.status(401).json({ error: "Not authenticated" });
+    const userId = requireAdmin(req, res);
+    if (!userId) return;
 
     try {
       let dbStatus = await getCapabilityStatus("database", "database:read");
@@ -501,8 +505,8 @@ export function registerKernelRoutes(app: Express) {
   });
 
   app.post("/api/kernel/feature-sunset", async (req: Request, res: Response) => {
-    const userId = getUserId(req);
-    if (!userId) return res.status(401).json({ error: "Not authenticated" });
+    const userId = requireAdmin(req, res);
+    if (!userId) return;
 
     const parsed = featureSunsetSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.errors[0]?.message || "Invalid input" });
@@ -536,8 +540,8 @@ export function registerKernelRoutes(app: Express) {
   });
 
   app.post("/api/kernel/feature-archive", async (req: Request, res: Response) => {
-    const userId = getUserId(req);
-    if (!userId) return res.status(401).json({ error: "Not authenticated" });
+    const userId = requireAdmin(req, res);
+    if (!userId) return;
 
     const parsed = featureArchiveSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.errors[0]?.message || "Invalid input" });
@@ -727,8 +731,8 @@ export function registerKernelRoutes(app: Express) {
   });
 
   app.post("/api/kernel/playbook/seed", async (req: Request, res: Response) => {
-    const userId = getUserId(req);
-    if (!userId) return res.status(401).json({ error: "Not authenticated" });
+    const userId = requireAdmin(req, res);
+    if (!userId) return;
 
     try {
       const existing = await db.select().from(capabilityDegradationPlaybooks).limit(1);
@@ -786,8 +790,8 @@ export function registerKernelRoutes(app: Express) {
   });
 
   app.post("/api/kernel/playbook/activate", async (req: Request, res: Response) => {
-    const userId = getUserId(req);
-    if (!userId) return res.status(401).json({ error: "Not authenticated" });
+    const userId = requireAdmin(req, res);
+    if (!userId) return;
 
     const parsed = playbookActivateSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.errors[0]?.message || "Invalid input" });
@@ -821,8 +825,8 @@ export function registerKernelRoutes(app: Express) {
   });
 
   app.post("/api/kernel/playbook/deactivate", async (req: Request, res: Response) => {
-    const userId = getUserId(req);
-    if (!userId) return res.status(401).json({ error: "Not authenticated" });
+    const userId = requireAdmin(req, res);
+    if (!userId) return;
 
     const { activationId } = req.body;
     if (!activationId) return res.status(400).json({ error: "activationId required" });

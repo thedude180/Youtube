@@ -1,5 +1,5 @@
 import type { Express, Request, Response } from "express";
-import { getUserId } from "./helpers";
+import { getUserId, requireAdmin } from "./helpers";
 import { db } from "../db";
 import { agentUiPayloads, agentInteropMessages, evalRuns, trustBudgetPeriods, platformCapabilityProbes } from "@shared/schema";
 import { eq, desc } from "drizzle-orm";
@@ -74,7 +74,7 @@ export function registerKernelOpsRoutes(app: Express) {
   });
 
   app.get("/api/admin/capability-probes", async (req: Request, res: Response) => {
-    const userId = requireAuth(req, res);
+    const userId = requireAdmin(req, res);
     if (!userId) return;
     try {
       const probes = await getProbeResults({ limit: 50 });
