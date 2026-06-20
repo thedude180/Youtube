@@ -142,6 +142,14 @@ export async function runBackCatalogForAllEligibleUsers(): Promise<{ usersRun: n
     return { usersRun: 0, errors: 0 };
   }
 
+  try {
+    const { canRunHeavyWork, getSystemPhase } = await import("../lib/system-load");
+    if (!canRunHeavyWork()) {
+      logger.info(`[BackCatalogRunner] Deferred — system phase is "${getSystemPhase()}" (need steady). Will retry on next scheduled run.`);
+      return { usersRun: 0, errors: 0 };
+    }
+  } catch { }
+
   const userIds = await getEligibleUserIds();
 
   if (userIds.length === 0) {

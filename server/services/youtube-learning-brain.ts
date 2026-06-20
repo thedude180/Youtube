@@ -847,6 +847,15 @@ export async function runDailyLearningCycle(userId: string): Promise<DailyLearni
     setState('learning-brain', `lastCycleAt:${userId}`, { ms: Date.now(), iso: new Date().toISOString() })
   ).catch(() => {});
 
+  try {
+    const { canRunHeavyWork, getSystemPhase } = await import("../lib/system-load");
+    if (!canRunHeavyWork()) {
+      logger.info(`[Brain] Daily cycle deferred for ${userId.slice(0, 8)} — system phase is "${getSystemPhase()}" (need steady). Brain will retry on its natural interval.`);
+      _lastCycleAt.delete(userId);
+      return null;
+    }
+  } catch { }
+
   logger.info(`[Brain] Starting daily learning cycle for ${userId.slice(0, 8)}`);
 
   // Step 0: Ingest what every other engine recorded since the last cycle.

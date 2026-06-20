@@ -417,6 +417,7 @@ export function clearQuotaBreaker(): void {
   _globalQuotaTripDate = null;
   if (prev) {
     logger.info("[QuotaBreaker] Circuit breaker explicitly cleared — new quota day started");
+    import("../lib/system-load").then(m => m.pushLoadSignal({ quotaTripped: false })).catch(() => {});
   }
 }
 
@@ -653,6 +654,7 @@ export function tripGlobalQuotaBreaker(): void {
       .map(l => l.trim().replace(/^\s*at\s*/, ""))
       .join(" | ") ?? "unknown";
     logger.warn(`[QuotaBreaker] YouTube API quota circuit breaker TRIPPED for ${today} — all YouTube API calls blocked until midnight Pacific`, { callerStack });
+    import("../lib/system-load").then(m => m.pushLoadSignal({ quotaTripped: true })).catch(() => {});
 
     // Record to learning_insights so the brain can detect time-of-day patterns
     // (e.g., "quota trips at 11am Pacific on 4/5 recent days → front-load publishing").

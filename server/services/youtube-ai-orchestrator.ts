@@ -653,6 +653,20 @@ export async function runYouTubeAICycle(userId: string, reason = "scheduled", fu
     };
   }
 
+  try {
+    const { canRunHeavyWork, getSystemPhase } = await import("../lib/system-load");
+    if (!canRunHeavyWork()) {
+      const phase = getSystemPhase();
+      logger.info(`[YouTubeAI] Deferred for ${userId.slice(0, 8)} — system phase is "${phase}" (need steady). Orchestrator will retry on its natural interval.`);
+      return {
+        userId, cycleId: "deferred", startedAt: new Date().toISOString(),
+        completedAt: new Date().toISOString(), tasksRun: [], tasksSkipped: [`all — system ${phase}`],
+        tasksApprovalRequired: [], shortsQueued: 0, longFormQueued: 0, metadataUpdated: 0,
+        learningComplete: false, errors: [],
+      };
+    }
+  } catch { }
+
   activeCycles.add(userId);
   const cycleId = `${Date.now()}-${userId.slice(0, 6)}`;
   const startedAt = new Date().toISOString();

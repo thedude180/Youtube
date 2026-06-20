@@ -240,12 +240,21 @@ export function registerAdminRoutes(app: Express) {
         const { getAllHeartbeats } = await import("../services/engine-heartbeat");
         const engines = await getAllHeartbeats();
         const mem = process.memoryUsage();
-        return { database: dbStatus, engines, uptime: process.uptime(), memory: { heapUsed: mem.heapUsed, heapTotal: mem.heapTotal } };
+        const { getSystemLoad } = await import("../lib/system-load");
+        const systemLoad = getSystemLoad();
+        return { database: dbStatus, engines, uptime: process.uptime(), memory: { heapUsed: mem.heapUsed, heapTotal: mem.heapTotal }, systemLoad };
       });
       res.json(health);
     } catch {
       res.json({ database: { status: "unknown", latencyMs: -1 }, engines: {}, uptime: process.uptime(), memory: {} });
     }
+  });
+
+  app.get("/api/system/load", async (req: any, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const { getSystemLoad } = await import("../lib/system-load");
+    res.json(getSystemLoad());
   });
 
   app.get("/api/admin/system-health", async (req, res) => {

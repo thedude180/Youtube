@@ -71,6 +71,7 @@ import path from "path";
 import { jitter } from "./lib/timer-utils";
 import { checkDependencies, getDependencyStatus } from "./lib/dependency-check";
 import { isEnabled } from "./config/service-gates";
+import { signalBootComplete } from "./lib/system-load";
 
 // Kick off ffmpeg + yt-dlp downloads immediately (no-op if already present).
 // Runs in parallel with server startup so binaries are ready before any
@@ -3440,6 +3441,13 @@ httpServer.listen(
       if (isEnabled("agent-orchestrator")) import("./services/agent-orchestrator").then(m => { m.bootstrapAllUserSessions().catch(slog("bootstrapAllUserSessions")); m.startWatchdog(); }).catch(slog("agent-orchestrator import"));
       import("./services/youtube-upload-watcher").then(m => m.bootstrapUploadWatchers().catch(slog("bootstrapUploadWatchers"))).catch(slog("upload-watcher import"));
       import("./services/youtube-vod-watcher").then(m => m.bootstrapVodWatchers().catch(slog("bootstrapVodWatchers"))).catch(slog("vod-watcher import"));
+
+      // ── Body is alive signal ───────────────────────────────────────────────
+      // Brainstem (DB/auth/HTTP) ✓  Skeleton (queue cleanup) ✓  Nervous system
+      // (event bus, watchers, live detection) ✓ — signal the rest of the body
+      // that it is safe to start organs.  Phase transitions: startup → warming
+      // (immediate) → steady (~10 min later, after heap/AI settle).
+      signalBootComplete();
 
       // Startup live-stream recovery: if a stream was live when the server went down,
       // re-hydrate in-memory state and restart all live services without waiting for the
