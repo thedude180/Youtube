@@ -4068,6 +4068,9 @@ httpServer.listen(
         // ── ASI fast-response layer — 15min heartbeat + comment engagement ──
         { label: "asi-heartbeat",             fn: () => import("./services/asi-heartbeat").then(m => { m.startAsiHeartbeat(); }).catch(slog("startAsiHeartbeat")) },
         { label: "comment-responder",         fn: () => import("./services/youtube-comment-responder").then(m => { m.startCommentResponder("7210ff92-76dd-4d0a-80bb-9eb5be27508b"); }).catch(slog("startCommentResponder")) },
+        // ── Live stream full-autonomy closure ────────────────────────────────
+        { label: "spontaneous-broadcast",     fn: () => import("./services/youtube-spontaneous-broadcast").then(m => { m.startSpontaneousBroadcastWatcher(); }).catch(slog("startSpontaneousBroadcastWatcher")) },
+        { label: "vod-chapter-generator",     fn: () => import("./services/youtube-vod-chapter-generator").then(m => { m.startVODChapterGenerator(); }).catch(slog("startVODChapterGenerator")) },
       ], 20_000);
       // Wave 10.75 complete. Reset MemoryGuardian baseline again so the second
       // import slope doesn't look like a sustained memory leak to the detector.
@@ -4704,6 +4707,8 @@ httpServer.listen(
     try { const m = await import("./services/youtube-comment-responder"); m.stopCommentResponder(); } catch {}
     try { const m = await import("./services/live-stream-asi"); m.stopLiveStreamAsi?.(); } catch {}
     try { const m = await import("./services/back-catalog-asi"); m.stopBackCatalogAsi?.(); } catch {}
+    try { const m = await import("./services/youtube-spontaneous-broadcast"); m.stopSpontaneousBroadcastWatcher(); } catch {}
+    try { const m = await import("./services/youtube-vod-chapter-generator"); m.stopVODChapterGenerator(); } catch {}
     stopDeadLetterDrain();
     stopPipelineTracer();
     stopPushCleanup();

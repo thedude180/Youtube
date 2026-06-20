@@ -802,6 +802,28 @@ export async function afterStreamCopilot(
     }
   }, 10 * 60_000); // 10-min delay: give YouTube time to process and publish the VOD
 
+  // Generate chapters for the VOD after a short delay (VOD needs to be fully processed)
+  if (vodYoutubeId) {
+    setTimeout(async () => {
+      try {
+        const { generateChaptersForVOD } = await import("./youtube-vod-chapter-generator");
+        const ytChannels = await db.select({ id: channels.id })
+          .from(channels)
+          .where(and(eq(channels.userId, userId), eq(channels.platform, "youtube"), isNotNull(channels.accessToken)))
+          .limit(1);
+        if (ytChannels[0]) {
+          const durationMs = stream?.endedAt && stream?.startedAt
+            ? new Date(stream.endedAt).getTime() - new Date(stream.startedAt).getTime()
+            : 0;
+          await generateChaptersForVOD(userId, ytChannels[0].id, vodYoutubeId, streamId, Math.floor(durationMs / 1000), stream?.category ?? undefined);
+          logger.info(`[Copilot] VOD chapters generated for ${vodYoutubeId}`);
+        }
+      } catch (err: any) {
+        logger.warn(`[Copilot] Chapter generation non-fatal: ${err?.message?.slice(0, 100)}`);
+      }
+    }, 20 * 60_000); // 20-min delay: after VOD processing + back-catalog sync
+  }
+
   return { shortsQueued, longFormQueued, clipMomentsFound, vodOptimized: false };
 }
 
