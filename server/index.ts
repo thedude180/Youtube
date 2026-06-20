@@ -4017,6 +4017,12 @@ httpServer.listen(
         { label: "safe-self-implementer",     fn: () => import("./services/safe-self-implementer").then(m => { backgroundIntervals.push(m.initSafeSelfImplementer("7210ff92-76dd-4d0a-80bb-9eb5be27508b")); }).catch(slog("initSafeSelfImplementer")) },
         { label: "causal-attribution-engine", fn: () => import("./services/causal-attribution-engine").then(m => { backgroundIntervals.push(m.initCausalAttributionEngine("7210ff92-76dd-4d0a-80bb-9eb5be27508b")); }).catch(slog("initCausalAttributionEngine")) },
         { label: "content-expansion-engine",  fn: () => import("./services/content-expansion-engine").then(m => { backgroundIntervals.push(m.initContentExpansionEngine("7210ff92-76dd-4d0a-80bb-9eb5be27508b")); }).catch(slog("initContentExpansionEngine")) },
+        // ── Three-tier ASI architecture — closed loop governing intelligence ─
+        // Boot order: Tier 1 (T+22min) → Tier 2 (T+25min) → Master (T+30min)
+        // Each tier reports to Master via signal bus; Master pushes strategy back down.
+        { label: "back-catalog-asi",          fn: () => import("./services/back-catalog-asi").then(m => { backgroundIntervals.push(m.initBackCatalogAsi()); }).catch(slog("initBackCatalogAsi")) },
+        { label: "live-stream-asi",           fn: () => import("./services/live-stream-asi").then(m => { backgroundIntervals.push(m.initLiveStreamAsi()); }).catch(slog("initLiveStreamAsi")) },
+        { label: "master-asi",                fn: () => import("./services/master-asi").then(m => { backgroundIntervals.push(m.initMasterAsi()); }).catch(slog("initMasterAsi")) },
       ], 15_000);
       // All 27 Wave 10.5 modules are now loaded. Reset the MemoryGuardian
       // baseline so leak detection starts from the stable post-load heap level

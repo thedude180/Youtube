@@ -10983,6 +10983,57 @@ export const servicePerformanceMetrics = pgTable("service_performance_metrics", 
 ]);
 export type ServicePerformanceMetric = typeof servicePerformanceMetrics.$inferSelect;
 
+// ── ASI Signal Bus ─────────────────────────────────────────────────────────────
+// Durable cross-ASI message queue. Back Catalog ASI, Live Stream ASI, and
+// Master ASI all publish/consume typed signals through this table.
+export const asiSignals = pgTable("asi_signals", {
+  id:          serial("id").primaryKey(),
+  fromTier:    text("from_tier").notNull(),   // back-catalog | live-stream | master
+  toTier:      text("to_tier").notNull(),     // back-catalog | live-stream | master
+  signalType:  text("signal_type").notNull(), // performance_report | strategy_update | compliance_alert | quota_allocation | capability_request
+  payload:     jsonb("payload").$type<Record<string, any>>().default({}),
+  processedAt: timestamp("processed_at"),
+  createdAt:   timestamp("created_at").notNull().defaultNow(),
+}, (t) => [
+  index("asi_sig_to_idx").on(t.toTier),
+  index("asi_sig_proc_idx").on(t.processedAt),
+]);
+export type AsiSignal = typeof asiSignals.$inferSelect;
+
+// ── ASI Cycle Reports ──────────────────────────────────────────────────────────
+// Structured performance reports each tier writes at the end of every cycle.
+// Master ASI reads these to synthesise cross-domain strategy.
+export const asiCycleReports = pgTable("asi_cycle_reports", {
+  id:              serial("id").primaryKey(),
+  userId:          text("user_id").notNull(),
+  tier:            text("tier").notNull(),       // back-catalog | live-stream | master
+  cycleType:       text("cycle_type").notNull(), // light | full
+  metricsSnapshot: jsonb("metrics_snapshot").$type<Record<string, any>>().default({}),
+  createdAt:       timestamp("created_at").notNull().defaultNow(),
+}, (t) => [
+  index("asi_rep_user_idx").on(t.userId),
+  index("asi_rep_tier_idx").on(t.tier),
+  index("asi_rep_created_idx").on(t.createdAt),
+]);
+export type AsiCycleReport = typeof asiCycleReports.$inferSelect;
+
+// ── ASI Strategy ───────────────────────────────────────────────────────────────
+// Master ASI writes its current unified strategy here after every full synthesis.
+// Both tier ASIs read this to inherit Master's directives on each cycle.
+export const asiStrategy = pgTable("asi_strategy", {
+  id:                serial("id").primaryKey(),
+  userId:            text("user_id").notNull().unique(),
+  activeStrategy:    jsonb("active_strategy").$type<Record<string, any>>().default({}),
+  lastSynthesizedAt: timestamp("last_synthesized_at").notNull().defaultNow(),
+  confidenceScore:   integer("confidence_score").notNull().default(70),
+  version:           integer("version").notNull().default(1),
+  createdAt:         timestamp("created_at").notNull().defaultNow(),
+  updatedAt:         timestamp("updated_at").defaultNow(),
+}, (t) => [
+  index("asi_strat_user_idx").on(t.userId),
+]);
+export type AsiStrategyRecord = typeof asiStrategy.$inferSelect;
+
 // ── Hypotheses ─────────────────────────────────────────────────────────────────
 // The hypothesis engine writes testable questions here.
 // The autonomous-experimenter picks them up and runs controlled tests.
