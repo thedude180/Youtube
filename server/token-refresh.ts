@@ -481,13 +481,24 @@ export async function keepAliveAllTokens(): Promise<{ kept: number; failed: numb
         }).where(eq(channels.id, ch.id));
       }
 
-      // Skip if we refreshed this channel in the last 20 hours (no need to refresh twice in one day)
-      if (pd._connectionStatus !== "expired" && pd._lastRefresh) {
+      // Skip if we refreshed this channel in the last 20 hours UNLESS the token
+      // is about to expire within the next 2 hours.  Without this override the
+      // guardian refreshes at T+10min, schedules the next keepalive for +12h, and
+      // the token can expire mid-publish-window (e.g. at quota-reset 07:05 UTC)
+      // before the next scheduled keepalive ever fires.
+      const tokenExpiresAt = ch.tokenExpiresAt ? new Date(ch.tokenExpiresAt).getTime() : null;
+      const expiresInMs = tokenExpiresAt ? tokenExpiresAt - Date.now() : null;
+      const tokenExpiringSoon = expiresInMs !== null && expiresInMs < 2 * 60 * 60 * 1000;
+
+      if (pd._connectionStatus !== "expired" && pd._lastRefresh && !tokenExpiringSoon) {
         const lastRefresh = new Date(pd._lastRefresh).getTime();
         if (Date.now() - lastRefresh < 20 * 60 * 60 * 1000) {
           kept++;
           continue;
         }
+      }
+      if (tokenExpiringSoon) {
+        logger.info(`[TokenKeepalive] Channel ${ch.id} token expires in ${Math.round((expiresInMs ?? 0) / 60_000)}min — forcing proactive refresh`);
       }
 
       // Per-channel lock prevents the keepalive from racing with refreshExpiringTokens

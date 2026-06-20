@@ -282,7 +282,13 @@ async function scanAndFixVideo(
     }
     issue.status = "review_needed";
     state.flaggedForReview++;
-    logger.warn(`[${userId}] Copyright Guardian flagged video ${video.id} for review — risk: ${checkResult.riskLevel}`);
+    // In dev the seeded videos trigger this every scan cycle; downgrade to info
+    // so the dev console doesn't fill with high-priority warn noise.
+    if (process.env.NODE_ENV === 'development') {
+      logger.info(`[${userId}] Copyright Guardian flagged video ${video.id} for review — risk: ${checkResult.riskLevel}`);
+    } else {
+      logger.warn(`[${userId}] Copyright Guardian flagged video ${video.id} for review — risk: ${checkResult.riskLevel}`);
+    }
   }
 
   return issue;

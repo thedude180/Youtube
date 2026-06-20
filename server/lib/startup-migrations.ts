@@ -6288,6 +6288,27 @@ async function cleanupNonBF6IndexedVaultEntries(): Promise<void> {
     if (permFailed > 0) {
       log.info(`[VaultNonBF6Cleanup] Fixed ${permFailed} vault entries stuck as indexed/downloading despite permanentFail=true`);
     }
+
+    // Sweep ghost vault entries whose user_id column contains a YouTube video
+    // ID instead of a user UUID (columns were swapped at creation time).
+    // These entries are never picked up by the downloader (which filters by the
+    // real UUID) but ARE counted by the health monitor's "stuck indexed" query,
+    // generating a false alarm on every boot.  UUID is always 36 chars (8-4-4-4-12);
+    // YouTube video IDs are 11 chars — LENGTH < 30 safely identifies them.
+    const r4 = await db.execute(sql.raw(`
+      UPDATE content_vault_backups
+      SET status = 'skipped',
+          download_error = 'per-boot: ghost entry — user_id contains a YouTube video ID (columns swapped at creation); not downloadable',
+          metadata = COALESCE(metadata, '{}'::jsonb)
+                  || '{"permanentFail":true,"failCount":10,"skippedBy":"cleanupGhostUserIdVault"}'::jsonb
+      WHERE status IN ('indexed', 'queued', 'downloading')
+        AND LENGTH(user_id) < 30
+        AND user_id NOT LIKE '________-____-____-____-____________'
+    `));
+    const ghostFixed = (r4 as any)?.rowCount ?? 0;
+    if (ghostFixed > 0) {
+      log.info(`[VaultNonBF6Cleanup] Marked ${ghostFixed} ghost-userid vault entries as skipped (columns were swapped at creation)`);
+    }
   } catch (err: any) {
     log.warn(`[VaultNonBF6Cleanup] Non-fatal: ${err?.message?.slice(0, 200)}`);
   }
