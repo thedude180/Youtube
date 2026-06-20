@@ -112,6 +112,9 @@ async function checkVaultStuck(): Promise<void> {
     FROM content_vault_backups
     WHERE status = 'indexed'
       AND created_at < NOW() - INTERVAL '2 hours'
+      AND game_name IS NOT NULL
+      AND (metadata->>'permanentFail') IS DISTINCT FROM 'true'
+      AND COALESCE((metadata->>'failCount')::int, 0) < 5
   `);
   const count = Number((result.rows[0] as any)?.count ?? 0);
 
