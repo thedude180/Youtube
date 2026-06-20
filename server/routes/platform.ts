@@ -122,12 +122,14 @@ export async function registerPlatformRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const url = getAuthUrl(userId);
-      // Pin the authenticated userId to the session so the callback can
-      // reliably identify the user even if the server restarts between the
-      // OAuth redirect and Google's callback (which clears the in-memory
-      // nonce map).  The callback already reads this key as its first fallback.
+      const { url, nonce } = getAuthUrl(userId);
+      // Pin the authenticated userId AND the nonce to the session so the
+      // callback can reliably verify the flow even if the server restarts
+      // between the OAuth redirect and Google's callback (which clears the
+      // in-memory nonce map).  The session nonce is required to pass the
+      // CSRF check in Layer 2 of the callback.
       (req.session as any).youtubeOAuthUserId = userId;
+      (req.session as any).youtubeOAuthNonce = nonce;
       const acceptHeader = req.headers.accept || "";
 
       // ALWAYS wait for the session to be written to the database before
@@ -168,10 +170,19 @@ export async function registerPlatformRoutes(app: Express) {
       userId = await getPendingOAuthUserFromDb(state);
       if (userId) resolvedBy = "nonce-db";
     }
-    // Layer 2: session key written by /api/youtube/auth BEFORE responding (guaranteed by session.save)
-    if (!userId) {
-      userId = (req.session as any)?.youtubeOAuthUserId || null;
-      if (userId) resolvedBy = "session-key";
+    // Layer 2: session key written by /api/youtube/auth BEFORE responding (guaranteed by session.save).
+    // SECURITY: only trust the session userId when `state` was present in the callback AND it matches
+    // the nonce we stored in the session at auth-initiation time.  This prevents an attacker from
+    // omitting (or forging) `state` and relying on a victim's leftover session key to hijack
+    // account-binding (OAuth CSRF / account-linking confusion).
+    if (!userId && state) {
+      const sessionNonce = (req.session as any)?.youtubeOAuthNonce;
+      if (sessionNonce && state === sessionNonce) {
+        userId = (req.session as any)?.youtubeOAuthUserId || null;
+        if (userId) resolvedBy = "session-key";
+      } else {
+        logger.warn(`[YouTube Callback] Session fallback rejected — state/nonce mismatch (state=${state?.slice(0,12)} sessionNonce=${String(sessionNonce).slice(0,12)})`);
+      }
     }
     // Note: we intentionally do NOT fall back to the current Passport session user here.
     // Doing so would allow an attacker to craft a callback URL that binds their YouTube
@@ -198,6 +209,7 @@ export async function registerPlatformRoutes(app: Express) {
     try {
       const result = await handleCallback(code, userId);
       delete (req.session as any).youtubeOAuthUserId;
+      delete (req.session as any).youtubeOAuthNonce;
       req.session.save(() => {}); // Persist the session key removal
 
       logger.info(`[YouTube Callback] ✓ Token saved for user ${userId} via ${resolvedBy}`);
@@ -267,10 +279,10 @@ export async function registerPlatformRoutes(app: Express) {
       }
 
       // Impersonate the channel's real owner for the OAuth callback
-      (req.session as any).youtubeOAuthUserId = ch.userId;
-
       const { getAuthUrl } = await import("../youtube");
-      const authUrl = getAuthUrl(ch.userId);
+      const { url: authUrl, nonce: authNonce } = getAuthUrl(ch.userId);
+      (req.session as any).youtubeOAuthUserId = ch.userId;
+      (req.session as any).youtubeOAuthNonce = authNonce;
       logger.warn(`[AdminReconnect] Initiating YouTube OAuth for channel ${channelRowId} (${ch.channelName}) on behalf of user ${ch.userId}`);
       logger.info(`[AdminReconnect] Redirect URI in use: ${process.env.GOOGLE_REDIRECT_URI || "(fallback)"}`);
 
@@ -324,10 +336,10 @@ export async function registerPlatformRoutes(app: Express) {
       const targetUserId = rows[0]?.userId ?? ET_GAMING_USER_ID;
       const channelLabel = rows[0] ? `channel ${rows[0].id} (${rows[0].channelName})` : "new channel (no existing row — will be created)";
 
-      (req.session as any).youtubeOAuthUserId = targetUserId;
-
       const { getAuthUrl } = await import("../youtube");
-      const authUrl = getAuthUrl(targetUserId);
+      const { url: authUrl, nonce: authNonce } = getAuthUrl(targetUserId);
+      (req.session as any).youtubeOAuthUserId = targetUserId;
+      (req.session as any).youtubeOAuthNonce = authNonce;
       logger.warn(`[AdminReconnect] Auto-reconnecting YouTube ${channelLabel} on behalf of user ${targetUserId}`);
       logger.info(`[AdminReconnect] Redirect URI in use: ${process.env.GOOGLE_REDIRECT_URI || "(fallback)"}`);
 
@@ -2549,9 +2561,9 @@ export async function registerPlatformRoutes(app: Express) {
     }
 
     try {
+      const { url: authUrl, nonce: authNonce } = getAuthUrl(userId);
       (req.session as any).youtubeOAuthUserId = userId;
-
-      const authUrl = getAuthUrl(userId);
+      (req.session as any).youtubeOAuthNonce = authNonce;
 
       req.session.save((err: any) => {
         if (err) {

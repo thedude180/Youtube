@@ -119,16 +119,17 @@ function getOAuth2Client() {
   return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
 }
 
-export function getAuthUrl(userId: string): string {
+export function getAuthUrl(userId: string): { url: string; nonce: string } {
   const oauth2Client = getOAuth2Client();
   const nonce = `yt_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
   setPendingOAuthUser(nonce, userId);
-  return oauth2Client.generateAuthUrl({
+  const url = oauth2Client.generateAuthUrl({
     access_type: "offline",
     scope: SCOPES,
     prompt: "consent",
     state: nonce,
   });
+  return { url, nonce };
 }
 
 export async function handleCallback(code: string, userId: string) {
