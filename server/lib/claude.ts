@@ -5,9 +5,9 @@ import { createLogger } from "./logger";
 
 const logger = createLogger("claude");
 export const CLAUDE_MODELS = {
-  opus: "claude-opus-4-6",
+  opus: "claude-opus-4-8",
   sonnet: "claude-sonnet-4-6",
-  haiku: "claude-haiku-4-5",
+  haiku: "claude-haiku-4-5-20251001",
 } as const;
 
 export type ClaudeModel = (typeof CLAUDE_MODELS)[keyof typeof CLAUDE_MODELS];

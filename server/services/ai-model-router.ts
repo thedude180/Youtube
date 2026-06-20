@@ -47,6 +47,8 @@ const TASK_MAPPINGS: Record<string, TaskMapping> = {
   strategy_planning:      { provider: "claude", model: CLAUDE_MODELS.opus,   maxTokens: 4096, temperature: 0.7, priority: "high" },
   script_writing:         { provider: "claude", model: CLAUDE_MODELS.opus,   maxTokens: 4096, temperature: 0.9, priority: "high" },
   competitor_analysis:    { provider: "claude", model: CLAUDE_MODELS.opus,   maxTokens: 4096, temperature: 0.4, priority: "high" },
+  // ASI learning loop — all master-asi, back-catalog-asi, goal-discovery, hypothesis-engine calls
+  learning:               { provider: "claude", model: CLAUDE_MODELS.opus,   maxTokens: 2048, temperature: 0.6, priority: "high" },
 
   // Already on best models
   creator_dna_analysis:   { provider: "claude", model: CLAUDE_MODELS.opus,   maxTokens: 2000, temperature: 0.3, priority: "high" },
@@ -60,10 +62,10 @@ const TASK_MAPPINGS: Record<string, TaskMapping> = {
 };
 
 const MODEL_PRICING: Record<string, { inputPer1k: number; outputPer1k: number }> = {
-  "gpt-5":             { inputPer1k: 0.0025,  outputPer1k: 0.01 },
-  "claude-opus-4-6":    { inputPer1k: 0.015,   outputPer1k: 0.075 },
-  "claude-sonnet-4-6":  { inputPer1k: 0.003,   outputPer1k: 0.015 },
-  "claude-haiku-4-5":   { inputPer1k: 0.0008,  outputPer1k: 0.004 },
+  "gpt-5":                     { inputPer1k: 0.0025,  outputPer1k: 0.01  },
+  "claude-opus-4-8":           { inputPer1k: 0.015,   outputPer1k: 0.075 },
+  "claude-sonnet-4-6":         { inputPer1k: 0.003,   outputPer1k: 0.015 },
+  "claude-haiku-4-5-20251001": { inputPer1k: 0.0008,  outputPer1k: 0.004 },
 };
 
 const FREE_TIERS = ["free", "youtube"];
@@ -189,7 +191,7 @@ export async function executeRoutedAICall(
   }
 
   const latencyMs = Date.now() - startTime;
-  const pricing = MODEL_PRICING[routing.model] || MODEL_PRICING["gpt-5"];
+  const pricing = MODEL_PRICING[routing.model] ?? MODEL_PRICING["claude-opus-4-8"] ?? MODEL_PRICING["gpt-5"];
   const costUsd = (promptTokens / 1000) * pricing.inputPer1k + (completionTokens / 1000) * pricing.outputPer1k;
 
   try {
