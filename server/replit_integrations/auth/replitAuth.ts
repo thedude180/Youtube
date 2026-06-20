@@ -22,12 +22,19 @@ const getOidcConfig = memoize(
 );
 
 export function getSession() {
-  const sessionTtl = 30 * 24 * 60 * 60 * 1000; // 30 days — returning users with same email stay logged in
+  // Cookie maxAge in ms (used by express-session for the browser cookie).
+  const sessionTtl = 30 * 24 * 60 * 60 * 1000; // 30 days in ms
+  // connect-pg-simple expects ttl in SECONDS, NOT ms.  Passing ms caused a
+  // setTimeout(fn, 2592000000) overflow (Node max 32-bit = ~24.8 days) which
+  // fired the pruning timer immediately on every boot and stored sessions with
+  // an 82-year expiry in the DB.
+  const sessionTtlSeconds = 30 * 24 * 60 * 60; // 30 days in seconds = 2,592,000
   const pgStore = connectPg(session);
   const sessionStore = new pgStore({
     conString: process.env.DATABASE_URL,
     createTableIfMissing: false,
-    ttl: sessionTtl,
+    ttl: sessionTtlSeconds,
+    pruneSessionInterval: 24 * 60 * 60, // prune once per day (in seconds)
     tableName: "sessions",
   });
 

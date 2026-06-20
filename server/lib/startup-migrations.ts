@@ -6307,6 +6307,34 @@ async function migration111RetryAsiSignalsIndex(): Promise<void> {
   }
 }
 
+// ── Migration 112: Add missing consumed_at column to asi_signals ──────────────
+// Migration 110 created the asi_signals table via db:push at some point, but the
+// table in the actual DB was missing the consumed_at column (db:push may have run
+// with a different schema version).  Migration 111 tried to index consumed_at but
+// failed silently with "column does not exist".  This migration adds the column
+// then recreates the index that Migration 111 couldn't create.
+async function migration112AddAsiSignalsConsumedAt(): Promise<void> {
+  const FLAG = "migration:112:asi_signals_consumed_at_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    await db.execute(sql.raw(`
+      ALTER TABLE asi_signals
+        ADD COLUMN IF NOT EXISTS consumed_at TIMESTAMP
+    `));
+    // Recreate the index that Migration 111 failed to create.
+    await db.execute(sql.raw(`
+      CREATE INDEX IF NOT EXISTS asi_signals_consumed_idx
+        ON asi_signals (consumed_at)
+    `));
+    log.info("[Migration 112] asi_signals.consumed_at column + index created");
+    await setFlag(FLAG);
+  } catch (err: any) {
+    const cause = (err as any)?.cause?.message ?? "";
+    log.warn(`[Migration 112] Failed (non-fatal): ${err?.message?.slice(0, 200)} | cause: ${cause.slice(0, 200)}`);
+    await setFlag(FLAG).catch(() => {});
+  }
+}
+
 // ── Non-flagged per-boot: cancel queue items pointing to non-BF6 vault sources
 // cleanupNonBF6QueueItems() cancels items where metadata.gameName is explicitly
 // non-BF6.  But items created with null gameName (benefit-of-doubt) that point
@@ -6641,6 +6669,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration109FailNotFoundPushBacklogItems();
     await migration110CreateAsiSignalTables();
     await migration111RetryAsiSignalsIndex();
+    await migration112AddAsiSignalsConsumedAt();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips

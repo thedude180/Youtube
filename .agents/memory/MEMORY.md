@@ -155,3 +155,5 @@
 - [BF2042 focus-gate false-allow](bf2042-focus-gate.md) — buildGameFilter abbrevMap "battlefield 6" uses bare "battlefield" that matches BF2042; fix: explicit DENY_RE before re.test(); per-boot cleanup + migration also needed.
 - [Shorts boring-clip freeze gate](shorts-boring-clip-gate.md) — encodeShort had no quality gate; wall-stare/idle clips encoded and published; fix: detectFreezeSegments(rawPath,10) before encode; >50% frozen → throw boring-clip: error.
 - [Midnight publish empty-queue fix](midnight-publish-fix.md) — quota reset cron Phase 3: seeds back-catalog + pre-encode + final publish pass when both retry passes return 0; back-catalog timer +5min → +2min.
+- [Push-backlog channel-gone dedup gap](push-backlog-channel-gone-dedup.md) — addToBacklog excluded status="failed" rows; competitor videoIds looped forever; fix: include failed rows in dedup, return early on "channel not found" lastError.
+- [connect-pg-simple ttl unit mismatch](connect-pg-simple-ttl.md) — expects SECONDS not ms; passing ms (2592000000) caused TimeoutOverflowWarning + 82-year session expiry; fix: pass 30*24*60*60 + explicit pruneSessionInterval.

@@ -60,7 +60,7 @@ async function getPerformanceSnapshot(): Promise<PerfSnapshot> {
     db.select({ n: count() }).from(backCatalogVideos)
       .where(and(
         eq(backCatalogVideos.userId, REAL_USER),
-        sql`short_mined_at IS NOT NULL OR long_form_mined_at IS NOT NULL`,
+        sql`(short_mined_at IS NOT NULL OR long_form_mined_at IS NOT NULL)`,
       )),
   ]);
 

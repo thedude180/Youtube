@@ -26,27 +26,43 @@ export async function addToBacklog(params: {
   priority?: number;
   updateType?: string;
 }): Promise<{ id: number; queued: boolean; reason?: string }> {
+  // Check ALL rows (including failed) for this youtubeVideoId so we can detect
+  // permanent "channel gone" failures.  Without this check the old query
+  // (ne status "failed") causes a fresh row to be inserted every catalog sync
+  // cycle for competitor/ghost video IDs that will never belong to this channel.
   const existing = await db.select().from(youtubePushBacklog)
     .where(and(
       eq(youtubePushBacklog.youtubeVideoId, params.youtubeVideoId),
       eq(youtubePushBacklog.userId, params.userId),
       ne(youtubePushBacklog.status, "completed"),
-      ne(youtubePushBacklog.status, "failed"),
     ))
+    .orderBy(youtubePushBacklog.updatedAt)
     .limit(1);
 
   if (existing.length > 0) {
-    const merged = { ...(existing[0].pendingUpdates as any), ...params.updates };
-    const updateData: any = { pendingUpdates: merged, updatedAt: new Date(), priority: params.priority ?? existing[0].priority };
-    if (existing[0].status === "failed") {
+    const row = existing[0];
+
+    // If this row permanently failed because the channel doesn't own the video,
+    // silently skip re-queuing — no retry will ever succeed.
+    const isChannelGone =
+      row.status === "failed" &&
+      (String(row.lastError || "").toLowerCase().includes("channel not found") ||
+       String(row.lastError || "").toLowerCase().includes("channel gone"));
+    if (isChannelGone) {
+      return { id: row.id, queued: false, reason: "channel_gone_permanent" };
+    }
+
+    const merged = { ...(row.pendingUpdates as any), ...params.updates };
+    const updateData: any = { pendingUpdates: merged, updatedAt: new Date(), priority: params.priority ?? row.priority };
+    if (row.status === "failed") {
       updateData.status = "queued";
       updateData.attempts = 0;
       updateData.lastError = null;
     }
     await db.update(youtubePushBacklog)
       .set(updateData)
-      .where(eq(youtubePushBacklog.id, existing[0].id));
-    return { id: existing[0].id, queued: true, reason: "merged_with_existing" };
+      .where(eq(youtubePushBacklog.id, row.id));
+    return { id: row.id, queued: true, reason: "merged_with_existing" };
   }
 
   const [record] = await db.insert(youtubePushBacklog).values({
