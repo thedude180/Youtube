@@ -4012,6 +4012,11 @@ httpServer.listen(
         { label: "architecture-critic",        fn: () => import("./services/architecture-critic").then(m => { backgroundIntervals.push(m.initArchitectureCritic("7210ff92-76dd-4d0a-80bb-9eb5be27508b")); }).catch(slog("initArchitectureCritic")) },
         { label: "hypothesis-engine",          fn: () => import("./services/hypothesis-engine").then(m => { backgroundIntervals.push(m.initHypothesisEngine("7210ff92-76dd-4d0a-80bb-9eb5be27508b")); }).catch(slog("initHypothesisEngine")) },
         { label: "self-architect",             fn: () => import("./services/self-architect").then(m => { backgroundIntervals.push(m.initSelfArchitect("7210ff92-76dd-4d0a-80bb-9eb5be27508b")); }).catch(slog("initSelfArchitect")) },
+        // ── ASI capability closure — the 5 missing ASI gaps ─────────────────
+        { label: "autonomous-goal-engine",    fn: () => import("./services/autonomous-goal-engine").then(m => { backgroundIntervals.push(m.initAutonomousGoalEngine("7210ff92-76dd-4d0a-80bb-9eb5be27508b")); }).catch(slog("initAutonomousGoalEngine")) },
+        { label: "safe-self-implementer",     fn: () => import("./services/safe-self-implementer").then(m => { backgroundIntervals.push(m.initSafeSelfImplementer("7210ff92-76dd-4d0a-80bb-9eb5be27508b")); }).catch(slog("initSafeSelfImplementer")) },
+        { label: "causal-attribution-engine", fn: () => import("./services/causal-attribution-engine").then(m => { backgroundIntervals.push(m.initCausalAttributionEngine("7210ff92-76dd-4d0a-80bb-9eb5be27508b")); }).catch(slog("initCausalAttributionEngine")) },
+        { label: "content-expansion-engine",  fn: () => import("./services/content-expansion-engine").then(m => { backgroundIntervals.push(m.initContentExpansionEngine("7210ff92-76dd-4d0a-80bb-9eb5be27508b")); }).catch(slog("initContentExpansionEngine")) },
       ], 15_000);
       // All 27 Wave 10.5 modules are now loaded. Reset the MemoryGuardian
       // baseline so leak detection starts from the stable post-load heap level

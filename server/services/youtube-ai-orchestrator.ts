@@ -47,6 +47,7 @@ import { linkWatchNextForUser } from "./youtube-watch-next-linker";
 import { linkSourcesToPublishedShorts } from "./youtube-source-linker";
 import { callClaudeBackground, CLAUDE_MODELS } from "../lib/claude";
 import { getFocusGame } from "../lib/game-focus";
+import { getContextString } from "../lib/reasoning-hub";
 
 const logger = createLogger("youtube-ai-orchestrator");
 
@@ -552,13 +553,18 @@ async function synthesizeChannelStrategy(userId: string): Promise<string> {
     const recent   = Number(recentRes[0]?.cnt ?? 0);
     const catalog  = catalogStatus?.totalVideos ?? 0;
     const longVids = catalogStatus?.over60Min  ?? 0;
-    const focusGame = await getFocusGame().catch(() => "the channel's primary game");
+    const [focusGame, reasoningCtx] = await Promise.all([
+      getFocusGame().catch(() => "the channel's primary game"),
+      getContextString(userId).catch(() => ""),
+    ]);
 
     const result = await callClaudeBackground({
       system: `You are the world's greatest autonomous YouTube channel strategist operating at ASI level. You have deep mastery of: YouTube's recommendation algorithm, CTR optimization, retention engineering, gaming content virality, channel growth compounding, and fully autonomous content pipeline management.
 
 Your role is to synthesize all available channel signals into a precise, high-confidence strategic directive that will drive the next 24-hour autonomous cycle. You reason in structured phases — Diagnosis → Analysis → Priorities → Directives — and your output directly controls what every downstream AI engine focuses on. Be specific, be data-driven, and be decisive.`,
       prompt: `CHANNEL: ET Gaming 274 — no-commentary, no-facecam PS5 gaming (current focus: ${focusGame}). 6,140 subscribers. Goal: ${goalCtx || "10K subscribers, Shorts-first compounding growth strategy"}.
+
+${reasoningCtx ? reasoningCtx + "\n" : ""}
 
 LIVE SYSTEM STATE (as of this cycle):
 • Back catalog indexed: ${catalog} videos (${longVids} over 60 min — each is a clip mine)
