@@ -60,6 +60,7 @@ let repeatTimer:    ReturnType<typeof setTimeout>  | null = null;
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 let running = false;
 let paused = false;
+let _lastRunDeferred = false; // true when last cycle was skipped due to memory/phase pressure
 let lastRunAt:      Date | null = null;
 let nextRunAt:      Date | null = null;
 let lastRunResult:  { usersRun: number; errors: number; queueDepth?: number } | null = null;
@@ -138,14 +139,16 @@ export async function runBackCatalogForAllEligibleUsers(): Promise<{ usersRun: n
   const mem = getContainerMemory();
   const freeMB = Math.round(mem.freeBytes / 1024 / 1024);
   if (mem.freeBytes < 300 * 1024 * 1024) {
-    logger.warn(`[BackCatalogRunner] Deferred — only ${freeMB}MB container memory free (need 300MB). Will retry on next scheduled run.`);
+    logger.warn(`[BackCatalogRunner] Deferred — only ${freeMB}MB container memory free (need 300MB). Will retry in 5 min.`);
+    _lastRunDeferred = true;
     return { usersRun: 0, errors: 0 };
   }
 
   try {
     const { canRunHeavyWork, getSystemPhase } = await import("../lib/system-load");
     if (!canRunHeavyWork()) {
-      logger.info(`[BackCatalogRunner] Deferred — system phase is "${getSystemPhase()}" (need steady). Will retry on next scheduled run.`);
+      logger.info(`[BackCatalogRunner] Deferred — system phase is "${getSystemPhase()}" (need steady). Will retry in 5 min.`);
+      _lastRunDeferred = true;
       return { usersRun: 0, errors: 0 };
     }
   } catch { }
@@ -156,6 +159,9 @@ export async function runBackCatalogForAllEligibleUsers(): Promise<{ usersRun: n
     logger.info("[BackCatalogRunner] No eligible users found (no connected YouTube channels)");
     return { usersRun: 0, errors: 0 };
   }
+
+  // Passed all deferral gates — mark as not deferred
+  _lastRunDeferred = false;
 
   // Record actual first execution (not just when setTimeout fired)
   import("../lib/boot-registry").then(({ recordBootStart }) => recordBootStart("back-catalog-runner")).catch(() => {});
@@ -287,6 +293,23 @@ export function initBackCatalogRunner(): void {
   }
 
   function scheduleNextRun(): void {
+    // If last cycle was deferred due to memory/phase pressure, retry in 5 min
+    // instead of waiting the full adaptive interval (up to 1h with an empty queue).
+    // This ensures the first catalog import always completes even when the runner
+    // fires into a momentary AI-semaphore spike or warming phase.
+    if (_lastRunDeferred) {
+      const retryMs = 5 * 60_000;
+      nextRunAt = new Date(Date.now() + retryMs);
+      logger.info("[BackCatalogRunner] Last run was deferred — retrying in 5 min");
+      repeatTimer = setTimeout(async () => {
+        if (running) { scheduleNextRun(); return; }
+        running = true;
+        try { await runBackCatalogForAllEligibleUsers(); } finally { running = false; }
+        scheduleNextRun();
+      }, retryMs);
+      return;
+    }
+
     getGlobalQueueDepth().then(depth => {
       // If quota breaker is active, skip the adaptive interval and aim for reset
       if (isQuotaBreakerTripped()) {
