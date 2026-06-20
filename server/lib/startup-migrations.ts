@@ -5433,7 +5433,13 @@ async function migration095FailNewInnerTube400Videos(): Promise<void> {
 //            18229: current active crash-loop job (15-min reboot cycle 2026-06-18).
 //            Add future problematic IDs here.
 //
-const LONG_STREAM_EDIT_JOB_IDS = [18117, 18229];
+// Known OOM crash-loop job IDs — cancelled in Layer B on every boot.
+// 18117: 2h source video (original OOM crash-loop culprit).
+// 18229: active crash-loop job (15-min reboot cycle 2026-06-18).
+// 18103–18112: 2.3h–6.9h source videos queued 2026-06-19; FFmpeg for these
+//   sources OOMs the container during encoding even with the 20-min time gate,
+//   because per-segment peak memory (FFmpeg + Node.js heap) exceeds 512 MB.
+const LONG_STREAM_EDIT_JOB_IDS = [18117, 18229, 18103, 18104, 18105, 18106, 18107, 18109, 18112];
 async function cancelLongStreamEditJobs(): Promise<void> {
   try {
     // Layer A: cancel every job that was mid-run when the server crashed.
@@ -5466,23 +5472,25 @@ async function cancelLongStreamEditJobs(): Promise<void> {
       );
     }
 
-    // Layer C: detect long-source queued jobs (log only — do NOT cancel).
-    // The stream editor now processes long videos in 20-min segments using a
-    // per-run time gate.  completedClips + outputFiles persist as the resume
-    // cursor so each boot picks up where the last one left off.  Blanket
-    // cancellation here would delete that progress; we log for observability only.
+    // Layer C: cancel ALL queued jobs with source > 7200 s (2 h).
+    // Even with the 20-min per-run time gate the per-segment FFmpeg peak memory
+    // (input demux + encode buffers + Node.js heap) routinely exceeds the
+    // 512 MB MemoryGuardian threshold, causing process.exit(1) → crash loop.
+    // Jobs for long sources must be re-submitted after the source file has been
+    // pre-trimmed to <2 h segments outside this process.
     const rLong = await db.execute(sql.raw(`
-      SELECT COUNT(*) AS cnt
-      FROM stream_edit_jobs
+      UPDATE stream_edit_jobs
+      SET status = 'cancelled',
+          error_message = 'Cancelled on boot — source >2h OOMs container during FFmpeg encoding (Layer C safety gate)'
       WHERE status = 'queued'
         AND source_duration_secs IS NOT NULL
         AND source_duration_secs > 7200
     `));
-    const longQueued = Number((rLong as any)?.rows?.[0]?.cnt ?? 0);
-    if (longQueued > 0) {
+    const longCancelled = Number((rLong as any)?.rowCount ?? 0);
+    if (longCancelled > 0) {
       log.info(
-        `[Boot] ${longQueued} long-source queued stream_edit_job(s) detected ` +
-        `(source_duration_secs > 7200 → will auto-segment in 20-min runs)`
+        `[Boot] Layer C: cancelled ${longCancelled} queued stream_edit_job(s) ` +
+        `with source_duration_secs > 7200 (OOM prevention)`
       );
     }
   } catch (err: any) {

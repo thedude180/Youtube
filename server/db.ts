@@ -14,9 +14,16 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
+// Dev and production share the same PostgreSQL instance.  Running both
+// simultaneously with max=50 each approaches the PG server connection limit
+// (~100) and causes "timeout exceeded when trying to connect" storms in both
+// processes.  Dev needs far fewer connections — cap it at 10 so production
+// always has ample headroom.
+const DB_POOL_MAX = process.env.NODE_ENV === "development" ? 10 : 50;
+
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  max: 50,                      // 50 slots — headroom for 146 background services competing during memory recovery
+  max: DB_POOL_MAX,             // dev=10, prod=50 — prevents dev+prod saturating shared PG instance
   idleTimeoutMillis: 10_000,    // release idle connections quickly to keep headroom
   connectionTimeoutMillis: 5_000, // 5s wait for a pool slot — fail fast so services don't pile up
   allowExitOnIdle: false,

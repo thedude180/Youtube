@@ -105,6 +105,15 @@ const lastPollAt = new Map<number, number>();
 registerMap("liveDetection.lastPollAt", lastPollAt as any, 500);
 
 /**
+ * DB-failure circuit breaker for live-detection.
+ * When the channels table query fails (pool exhaustion / timeout), back off
+ * for 3 minutes before retrying.  Without this, every 45-second poll cycle
+ * fires another failing connection attempt, flooding the already-saturated pool
+ * and making recovery slower for every other service.
+ */
+let _liveDetectionDbBackoffUntil = 0;
+
+/**
  * Returns true if this channel's platform is ready to be polled.
  * Two gates must both pass:
  *   1. Boot-time offset — the platform's staggered first-poll delay has elapsed,
@@ -513,6 +522,12 @@ let running = false;
 
 export async function runMultiPlatformLiveDetection() {
   if (running) return;
+
+  // Circuit breaker: after a DB failure, back off for 3 min before retrying.
+  // This prevents the 45-second poll timer from flooding an already-saturated
+  // pool with failing connection attempts during a DB pressure spike.
+  if (Date.now() < _liveDetectionDbBackoffUntil) return;
+
   running = true;
 
   try {
@@ -576,8 +591,16 @@ export async function runMultiPlatformLiveDetection() {
         logger.error(`[LiveDetection] ${platform} check failed for channel ${channelDbId}:`, err);
       }
     }
-  } catch (err) {
-    logger.error("[LiveDetection] Multi-platform detection error:", err);
+  } catch (err: any) {
+    const msg = String(err?.message || err);
+    // If the error is a DB connection timeout (pool exhaustion), engage the
+    // circuit breaker so we don't hammer the pool every 45 seconds.
+    if (msg.includes("timeout exceeded") || msg.includes("ETIMEDOUT") || msg.includes("pool")) {
+      _liveDetectionDbBackoffUntil = Date.now() + 3 * 60 * 1000; // 3-minute backoff
+      logger.warn("[LiveDetection] DB timeout on channels query — circuit breaker engaged for 3 min");
+    } else {
+      logger.error("[LiveDetection] Multi-platform detection error:", err);
+    }
   } finally {
     running = false;
   }
