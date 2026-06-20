@@ -1042,6 +1042,10 @@ async function healProductionPipeline(): Promise<void> {
           )!,
           eq(autopilotQueue.status, "cancelled"),
           gteOp(autopilotQueue.createdAt, thirtyDaysAgo),
+          // Don't restore items that were intentionally cancelled by focus-game
+          // cleanups or other named migrations — only restore Bug B victims
+          // (which have no failReason set).
+          sql`(${autopilotQueue.metadata}->>'failReason' IS NULL OR ${autopilotQueue.metadata}->>'failReason' NOT LIKE 'migration-%')`,
         )!
       );
     const vodCancelledCount = (vodCancelledResult as any)?.rowCount ?? "?";
@@ -4009,6 +4013,10 @@ httpServer.listen(
         { label: "hypothesis-engine",          fn: () => import("./services/hypothesis-engine").then(m => { backgroundIntervals.push(m.initHypothesisEngine("7210ff92-76dd-4d0a-80bb-9eb5be27508b")); }).catch(slog("initHypothesisEngine")) },
         { label: "self-architect",             fn: () => import("./services/self-architect").then(m => { backgroundIntervals.push(m.initSelfArchitect("7210ff92-76dd-4d0a-80bb-9eb5be27508b")); }).catch(slog("initSelfArchitect")) },
       ], 15_000);
+      // All 27 Wave 10.5 modules are now loaded. Reset the MemoryGuardian
+      // baseline so leak detection starts from the stable post-load heap level
+      // rather than the steep slope created by sequential module imports.
+      memoryGuardian.resetBaseline();
     });
 
     // ── WAVE 11: Self-healing, webhook pipeline, health brain — T+40min ──────

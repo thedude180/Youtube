@@ -7,7 +7,10 @@ const logger = createLogger("memory-guardian");
 // Skip leak detection for this long after boot — startup burst from JIT
 // compilation, module loading, and concurrent service initialisation creates
 // a high, short-lived slope that looks like a genuine leak but isn't.
-const STARTUP_HOLDOFF_MS = 5 * 60_000; // 5 minutes
+// Wave 10.5 sequential boot loads 27 modules at 15s intervals starting at
+// T+31.6min, finishing at ~T+38.4min.  Extending the holdoff to 42 minutes
+// prevents a false-positive restart during that module-load window.
+const STARTUP_HOLDOFF_MS = 42 * 60_000; // 42 minutes
 
 // Require this many samples before running leak detection.
 // At 60s/tick that means 20 minutes of stable data before we call it a leak.
@@ -141,6 +144,16 @@ class MemoryGuardian {
       // Clear snapshots to start fresh trend analysis
       this.snapshots = [];
     }
+  }
+
+  /**
+   * Reset the snapshot baseline so leak detection restarts from the current
+   * heap level.  Call this once all Wave 10.5 module loads have finished so
+   * the linear regression uses only post-startup steady-state samples.
+   */
+  resetBaseline() {
+    this.snapshots = [];
+    logger.info("[MemoryGuardian] Baseline reset — leak detection will restart from current heap level");
   }
 
   getStats() {
