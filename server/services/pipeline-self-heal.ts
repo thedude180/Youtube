@@ -102,22 +102,51 @@ async function healContentPipeline(): Promise<[number, number]> {
 }
 
 // ─── Heal 2: youtube_push_backlog ────────────────────────────────────────────
+// Known-permanent errors that the YouTube API returns for videos that no longer
+// exist or can never be pushed — retrying wastes quota units.
+const PERMANENT_BACKLOG_ERRORS = [
+  "%Video not found%",
+  "%videoNotFound%",
+  "%video was not found%",
+  "%The caller does not have permission%",
+  "%callerNotAllowed%",
+  "%forbidden%",
+  "%HTTP_400_ALL_CLIENTS%",
+  "%privacyInvalid%",
+  "%uploadLimitExceeded%",
+];
+
 async function healPushBacklog(): Promise<number> {
-  const patterns = [...TRANSIENT_DB, ...TRANSIENT_NET].map(p =>
+  // 2a. Retry transient failures (DB/network blips)
+  const transientPatterns = [...TRANSIENT_DB, ...TRANSIENT_NET].map(p =>
     like(youtubePushBacklog.lastError, p)
   );
-
-  const res = await db
+  const retried = await db
     .update(youtubePushBacklog)
     .set({ status: "queued", lastError: null, attempts: 0 })
     .where(
       and(
         eq(youtubePushBacklog.status, "failed"),
-        or(...patterns)!
+        or(...transientPatterns)!
       )!
     );
 
-  return (res as any)?.rowCount ?? 0;
+  // 2b. Permanently retire known-permanent errors — set attempts=99 so the
+  // backlog processor never picks them up again.
+  const permanentPatterns = PERMANENT_BACKLOG_ERRORS.map(p =>
+    like(youtubePushBacklog.lastError, p)
+  );
+  const retired = await db
+    .update(youtubePushBacklog)
+    .set({ status: "failed", attempts: 99 })
+    .where(
+      and(
+        sql`${youtubePushBacklog.attempts} < 99`,
+        or(...permanentPatterns)!
+      )!
+    );
+
+  return ((retried as any)?.rowCount ?? 0) + ((retired as any)?.rowCount ?? 0);
 }
 
 // ─── Heal 3: stream_edit_jobs ────────────────────────────────────────────────
@@ -228,6 +257,29 @@ async function healAutopilotQueue(): Promise<number> {
         lt(autopilotQueue.createdAt, cutoff)
       )!
     );
+  return (res as any)?.rowCount ?? 0;
+}
+
+// ─── Heal 6b: orphaned queue items ───────────────────────────────────────────
+// Cancel autopilot_queue items whose vault source is permanently dead.
+// Runs every self-heal cycle (not just on boot) so newly-created items pointing
+// to gone/inaccessible sources are caught within 30 min rather than accumulating
+// indefinitely.  Covers both 'failed' (all extractors exhausted) and 'skipped'
+// (HTTP_400_ALL_CLIENTS — video gone from YouTube entirely).
+async function healOrphanedQueueItems(): Promise<number> {
+  const res = await db.execute(sql`
+    UPDATE autopilot_queue
+    SET    status        = 'cancelled',
+           error_message = 'Source vault entry permanently dead — cancelled by self-heal orphan sweep'
+    WHERE  status IN ('scheduled','pending','queued','deferred')
+      AND  metadata->>'sourceYoutubeId' IS NOT NULL
+      AND  metadata->>'sourceYoutubeId' != ''
+      AND  EXISTS (
+        SELECT 1 FROM content_vault_backups cvb
+        WHERE  cvb.youtube_id = (autopilot_queue.metadata->>'sourceYoutubeId')
+          AND  cvb.status IN ('failed', 'skipped')
+      )
+  `);
   return (res as any)?.rowCount ?? 0;
 }
 
@@ -370,6 +422,7 @@ export async function runPipelineSelfHeal(deep = false): Promise<void> {
     healStudioVideos(),
     healAutopilotQueue(),
     healJobsTable(),
+    healOrphanedQueueItems(),
   ]);
 
   // Extract results, defaulting to zero on rejection so totals stay sane.
@@ -387,9 +440,10 @@ export async function runPipelineSelfHeal(deep = false): Promise<void> {
   const studioFixed       = safeNum(settled[4] as PromiseSettledResult<number>);
   const autopilotFixed    = safeNum(settled[5] as PromiseSettledResult<number>);
   const jobsFixed         = safeNum(settled[6] as PromiseSettledResult<number>);
+  const orphansFixed      = safeNum(settled[7] as PromiseSettledResult<number>);
 
   // Log per-step results so each fix is visible in real-time (not just the summary).
-  const STEP_NAMES = ["pipeline","backlog","editJobs","clips","studio","autopilot","jobs"] as const;
+  const STEP_NAMES = ["pipeline","backlog","editJobs","clips","studio","autopilot","jobs","orphans"] as const;
   settled.forEach((r, i) => {
     const name = STEP_NAMES[i];
     if (r.status === "fulfilled") {
@@ -419,7 +473,7 @@ export async function runPipelineSelfHeal(deep = false): Promise<void> {
 
   totalRecovered = pipelineStuck + pipelineErrored + backlogFixed +
     editStuck + editTransient + editMissing +
-    clipsFixed + studioFixed + autopilotFixed + jobsFixed;
+    clipsFixed + studioFixed + autopilotFixed + jobsFixed + orphansFixed;
 
   // Vault heal + high-failCount retirement run every cycle
   const [vaultStuck, vaultFailed] = await healVaultBackups();
@@ -437,7 +491,7 @@ export async function runPipelineSelfHeal(deep = false): Promise<void> {
       `backlog[${backlogFixed}] ` +
       `editJobs[stuck:${editStuck} transient:${editTransient} missing:${editMissing}] ` +
       `clips[${clipsFixed}] studio[${studioFixed}] ` +
-      `autopilot[${autopilotFixed}] jobs[${jobsFixed}] ` +
+      `autopilot[${autopilotFixed}] jobs[${jobsFixed}] orphans[${orphansFixed}] ` +
       `vault[stuck:${vaultStuck} failed:${vaultFailed} retired:${vaultRetired}]`;
 
     logger.info(`[self-heal] Recovered ${totalRecovered} items in ${elapsed}ms — ${summary}`);

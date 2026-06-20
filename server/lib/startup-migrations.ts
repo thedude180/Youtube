@@ -2494,21 +2494,23 @@ async function cleanupOrphanedQueueItems(): Promise<void> {
     `);
     const storms = (stormResult as any).rowCount ?? 0;
 
-    // Step 3: cancel active queue items whose source vault entry is permanently failed.
+    // Step 3: cancel active queue items whose source vault entry is permanently dead.
+    // Covers both status='failed' (all extractors exhausted) and status='skipped'
+    // (HTTP_400_ALL_CLIENTS — video gone from YouTube entirely).
     // Uses metadata->>'sourceYoutubeId' (JSONB) — autopilot_queue has no source_youtube_id
     // text column; only source_video_id (int FK). Back-catalog items store the YouTube ID
     // in metadata, so this path captures all relevant orphans.
     const orphanResult = await db.execute(sql`
       UPDATE autopilot_queue
-      SET    status        = 'failed',
-             error_message = 'Source vault entry permanently failed — cancelled by per-boot orphan sweep'
+      SET    status        = 'cancelled',
+             error_message = 'Source vault entry permanently dead — cancelled by per-boot orphan sweep'
       WHERE  status IN ('scheduled','pending','queued','deferred')
         AND  metadata->>'sourceYoutubeId' IS NOT NULL
         AND  metadata->>'sourceYoutubeId' != ''
         AND  EXISTS (
           SELECT 1 FROM content_vault_backups cvb
           WHERE  cvb.youtube_id = (autopilot_queue.metadata->>'sourceYoutubeId')
-            AND  cvb.status = 'failed'
+            AND  cvb.status IN ('failed', 'skipped')
         )
     `);
     const orphans = (orphanResult as any).rowCount ?? 0;
