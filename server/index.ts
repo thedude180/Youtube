@@ -3594,35 +3594,38 @@ httpServer.listen(
     // Wave 10 consume what this wave produces. Token guardian already ran at
     // T+30s (Wave 1) so YouTube API calls here always have valid tokens.
     if (!LITE_MODE) wave(() => {
-      if (isEnabled("weekly-report-engine")) import("./weekly-report-engine").then(m => m.initWeeklyReportEngine()).catch(slog("initWeeklyReportEngine"));
-      if (isEnabled("daily-upload-digest")) import("./services/daily-upload-digest").then(m => m.initDailyUploadDigestEngine()).catch(slog("initDailyUploadDigestEngine"));
+      // pipeline-self-heal fires immediately — lightweight, critical for early recovery.
       import("./services/pipeline-self-heal").then(m => m.initPipelineSelfHeal()).catch(slog("initPipelineSelfHeal"));
-      // Sequential AI-engine delays (relative to Wave 8 start at ~T+15min):
-      // repurpose T+20min, automation T+22min, trend-rider T+24min
+
+      // ── Staggered import schedule ─────────────────────────────────────────────
+      // WHY: Wave 8 fires at ~T+20min. Firing 8+ import() calls simultaneously
+      // causes a JIT/parse memory spike (each module = 2-10 MB parsed + compiled).
+      // Combined with the existing Node.js heap (~400 MB), this pushes the container
+      // into OS-level OOM (SIGKILL, no log) every ~22 min.
+      // FIX: stagger imports so module loads spread over T+20–52 min instead of all
+      // hitting at T+20min.  Services that had an internal "await delay" before their
+      // first run now simply delay the import itself — same effective first-run time.
+      // ─────────────────────────────────────────────────────────────────────────
+      setTimeout(() => { if (isEnabled("weekly-report-engine")) import("./weekly-report-engine").then(m => m.initWeeklyReportEngine()).catch(slog("initWeeklyReportEngine")); }, 30_000);          // T+20.5min
+      setTimeout(() => { if (isEnabled("daily-upload-digest")) import("./services/daily-upload-digest").then(m => m.initDailyUploadDigestEngine()).catch(slog("initDailyUploadDigestEngine")); }, 60_000);  // T+21min
+      setTimeout(() => {                                                                                                                                                                                    // T+21.5min
+        if (isEnabled("trust-governance")) import("./services/trust-governance").then(m => {
+          m.startBudgetResetScheduler();
+          m.startOverrideReportScheduler();
+        }).catch(slog("trust-governance schedulers"));
+      }, 90_000);
+      // AI-intensive engines: delays relative to Wave 8 start (~T+20min):
+      // repurpose T+25min, automation T+27min, trend-rider T+29min
       setTimeout(() => import("./services/shorts-repurpose-engine").then(m => m.initShortsRepurposeEngine()).catch(slog("initShortsRepurposeEngine")), 5 * 60_000);
-      // Boot-level engines required for full autonomy
       if (isEnabled("automation-engine")) setTimeout(() => import("./automation-engine").then(m => m.initAutomationEngine()).catch(slog("initAutomationEngine")), 7 * 60_000);
       if (isEnabled("trend-rider-engine")) setTimeout(() => import("./trend-rider-engine").then(m => m.startTrendRiderEngine()).catch(slog("startTrendRiderEngine")), 9 * 60_000);
-      if (isEnabled("trust-governance")) import("./services/trust-governance").then(m => {
-        m.startBudgetResetScheduler();
-        m.startOverrideReportScheduler();
-      }).catch(slog("trust-governance schedulers"));
-      // Stagger AI-intensive engines: spread initial runs over 2-10 min to avoid startup 429 storms
-      const stagger = (minMs: number) => minMs + Math.floor(Math.random() * 120_000);
-      // AUTO-THUMBNAIL PAUSED — preserving quota exclusively for video uploads.
-      // Re-enable once upload cadence is stable and quota increase is approved.
-      // import("./auto-thumbnail-engine").then(async m => {
-      //   await new Promise(r => setTimeout(r, stagger(2 * 60_000)));
-      //   await m.runAutoThumbnailGeneration().catch(slog("runAutoThumbnailGeneration"));
-      //   const iv = setInterval(() => m.runAutoThumbnailGeneration().catch(slog("runAutoThumbnailGeneration")), jitter(60 * 60_000));
-      //   backgroundIntervals.push(iv);
-      // }).catch(slog("auto-thumbnail-engine import"));
-      if (isEnabled("marketer-engine")) import("./marketer-engine").then(async m => {
-        await new Promise(r => setTimeout(r, 10 * 60_000)); // T+15+10=T+25min
-        await m.runMarketingCycleForAllUsers().catch(slog("runMarketingCycleForAllUsers"));
+      // marketer-engine: import delayed by 10min so the module load itself is at T+30min
+      // (previously: immediate import + 10-min await inside .then() — same run time, earlier OOM spike)
+      if (isEnabled("marketer-engine")) setTimeout(() => import("./marketer-engine").then(async m => {
+        await m.runMarketingCycleForAllUsers().catch(slog("runMarketingCycleForAllUsers")); // T+30min
         const iv = setInterval(() => m.runMarketingCycleForAllUsers().catch(slog("runMarketingCycleForAllUsers")), jitter(12 * 60 * 60_000));
         backgroundIntervals.push(iv);
-      }).catch(slog("marketer-engine import"));
+      }).catch(slog("marketer-engine import")), 10 * 60_000);
       // CROSS-POSTING DISABLED — daily-content-engine generates multi-platform
       // content groups (YouTube + TikTok etc.) and is disabled until cross-posting
       // is re-enabled.  YouTube-only autopilot (back-catalog runner + AI orchestrator)
@@ -3633,24 +3636,24 @@ httpServer.listen(
       //   const iv = setInterval(() => m.runDailyContentGeneration().catch(slog("runDailyContentGeneration")), jitter(3 * 60 * 60_000));
       //   backgroundIntervals.push(iv);
       // }).catch(slog("daily-content-engine import"));
-      import("./playlist-manager").then(async m => {
-        await new Promise(r => setTimeout(r, 13 * 60_000)); // T+15+13=T+28min
-        await m.runPlaylistOrganizationForAllUsers().catch(slog("runPlaylistOrganization"));
+      // playlist-manager: import delayed by 13min so the module load is at T+33min
+      setTimeout(() => import("./playlist-manager").then(async m => {
+        await m.runPlaylistOrganizationForAllUsers().catch(slog("runPlaylistOrganization")); // T+33min
         await m.runPlaylistCleanupForAllUsers().catch(slog("runPlaylistCleanup"));
         const iv = setInterval(() => m.runPlaylistOrganizationForAllUsers().catch(slog("runPlaylistOrganization")), jitter(6 * 60 * 60_000));
         backgroundIntervals.push(iv);
         const ivClean = setInterval(() => m.runPlaylistCleanupForAllUsers().catch(slog("runPlaylistCleanup")), jitter(24 * 60 * 60_000));
         backgroundIntervals.push(ivClean);
-      }).catch(slog("playlist-manager import"));
+      }).catch(slog("playlist-manager import")), 13 * 60_000);
       // THUMBNAIL BACKFILL PAUSED — preserving quota exclusively for video uploads.
       // Re-enable once upload cadence is stable and quota increase is approved.
       // import("./auto-thumbnail-engine").then(async m => { ... }).catch(slog("auto-thumbnail-backfill import"));
-      import("./vod-optimizer-engine").then(async m => {
-        await new Promise(r => setTimeout(r, 32 * 60_000)); // T+15+32=T+47min (was 16min→T+31min; pushed to avoid T+29-35min convergence window)
-        await m.runVodOptimizationCycle().catch(slog("runVodOptimizationCycle"));
+      // vod-optimizer-engine: import delayed by 32min so the module load is at T+52min
+      setTimeout(() => import("./vod-optimizer-engine").then(async m => {
+        await m.runVodOptimizationCycle().catch(slog("runVodOptimizationCycle")); // T+52min (was T+47min — slight push due to import stagger)
         const iv = setInterval(() => m.runVodOptimizationCycle().catch(slog("runVodOptimizationCycle")), jitter(12 * 60 * 60_000));
         backgroundIntervals.push(iv);
-      }).catch(slog("vod-optimizer-engine import"));
+      }).catch(slog("vod-optimizer-engine import")), 32 * 60_000);
 
       // ── Back Catalog Runner — dedicated autonomous runner ────────────────────
       // Replaces the old inline back-catalog wiring.  initBackCatalogRunner()
@@ -3661,28 +3664,36 @@ httpServer.listen(
       }
 
       // ── Publishing Watchdog ───────────────────────────────────────────────────
+      // Staggered to T+22min (2min after Wave 8) to avoid simultaneous init spike.
       // Dead-man's switch: checks the public channel RSS feed every 30 min.
       // If no Short or VOD has been published today by 10 AM UTC, it runs a
       // full pipeline repair (token refresh → long-form → Shorts → back-catalog).
-      try { initPublishingWatchdog(); } catch (e: any) {
-        logger.error("[Boot] initPublishingWatchdog threw — watchdog will not run", { error: e?.message });
-      }
+      setTimeout(() => {
+        try { initPublishingWatchdog(); } catch (e: any) {
+          logger.error("[Boot] initPublishingWatchdog threw — watchdog will not run", { error: e?.message });
+        }
+      }, 2 * 60_000);
 
       // ── Channel Intelligence Engine ───────────────────────────────────────────
-      // Reads all signal layers (queue depth, view velocity, zombie videos, top
-      // performers) every 2 hours. Adjusts content strategy, triggers zombie repair,
-      // and refills the queue before it runs dry.  First run at T+35 min.
-      try { initChannelIntelligenceEngine(); } catch (e: any) {
-        logger.error("[Boot] initChannelIntelligenceEngine threw — intelligence engine will not run", { error: e?.message });
-      }
+      // Staggered to T+23min. Reads all signal layers (queue depth, view velocity,
+      // zombie videos, top performers) every 2 hours. Adjusts content strategy,
+      // triggers zombie repair, and refills the queue before it runs dry.
+      // First run at T+35 min (own internal delay from initChannelIntelligenceEngine).
+      setTimeout(() => {
+        try { initChannelIntelligenceEngine(); } catch (e: any) {
+          logger.error("[Boot] initChannelIntelligenceEngine threw — intelligence engine will not run", { error: e?.message });
+        }
+      }, 3 * 60_000);
 
       // ── Autopilot Queue Rescheduler ───────────────────────────────────────────
-      // Runs every 30 min. Finds past-due `scheduled` items, groups them by
-      // game name (focus game first), and assigns new future slots so the
-      // schedule stays game-coherent instead of randomly scattered.
-      try { startQueueRescheduler(); } catch (e: any) {
-        logger.error("[Boot] startQueueRescheduler threw — rescheduler will not run", { error: e?.message });
-      }
+      // Staggered to T+24min. Runs every 30 min. Finds past-due `scheduled` items,
+      // groups them by game name (focus game first), and assigns new future slots so
+      // the schedule stays game-coherent instead of randomly scattered.
+      setTimeout(() => {
+        try { startQueueRescheduler(); } catch (e: any) {
+          logger.error("[Boot] startQueueRescheduler threw — rescheduler will not run", { error: e?.message });
+        }
+      }, 4 * 60_000);
 
       // ── Resurrection Engine (T+35s) ──────────────────────────────────────────
       // Scans for permanently_failed items across all pipeline tables and gives

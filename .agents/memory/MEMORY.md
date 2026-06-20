@@ -1,3 +1,4 @@
+- [Wave 8 simultaneous-import OOM crash](wave8-ooom-stagger.md) — 8+ import() calls at T+20min = JIT parse spike → OS SIGKILL every ~22min; all Wave 8 imports MUST be staggered via setTimeout.
 - [Dev auth requireAuth pattern](dev-auth-requireauth.md) — all route files MUST use requireAuth(req,res) from ./helpers, never (req as any).user?.id.
 - [Stream editor job layer isolation](stream-editor-job-layers.md) — cancelLongStreamEditJobs Layers A/B/C each need own try/catch; shared try/catch means Layer A DB error silently skips B+C.
 - [Dev pool cap prevents PG saturation](dev-pool-cap.md) — server/db.ts: DB_POOL_MAX = dev?10:50; dev+prod share same PG instance (max=100); dev was 50 → combined 100 saturated the limit → crash loop.
