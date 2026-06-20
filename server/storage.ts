@@ -107,14 +107,18 @@ export interface IStorage {
   createVideoUpdateHistory(entry: InsertVideoUpdateHistory): Promise<VideoUpdateHistory>;
 
   getContentInsights(channelId?: number): Promise<ContentInsight[]>;
+  getContentInsightsByChannelIds(channelIds: number[]): Promise<ContentInsight[]>;
   createContentInsight(insight: InsertContentInsight): Promise<ContentInsight>;
   clearInsights(channelId?: number): Promise<void>;
 
   getComplianceRecords(channelId?: number): Promise<ComplianceRecord[]>;
+  getComplianceRecordsByChannelIds(channelIds: number[]): Promise<ComplianceRecord[]>;
   createComplianceRecord(record: InsertComplianceRecord): Promise<ComplianceRecord>;
   clearComplianceRecords(channelId?: number): Promise<void>;
 
   getGrowthStrategies(channelId?: number): Promise<GrowthStrategy[]>;
+  getGrowthStrategiesByChannelIds(channelIds: number[]): Promise<GrowthStrategy[]>;
+  getGrowthStrategy(id: number): Promise<GrowthStrategy | undefined>;
   createGrowthStrategy(strategy: InsertGrowthStrategy): Promise<GrowthStrategy>;
   updateGrowthStrategy(id: number, updates: Partial<InsertGrowthStrategy>): Promise<GrowthStrategy>;
 
@@ -758,6 +762,11 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(contentInsights).orderBy(desc(contentInsights.createdAt));
   }
 
+  async getContentInsightsByChannelIds(channelIds: number[]): Promise<ContentInsight[]> {
+    if (channelIds.length === 0) return [];
+    return await db.select().from(contentInsights).where(inArray(contentInsights.channelId, channelIds)).orderBy(desc(contentInsights.createdAt));
+  }
+
   async createContentInsight(insight: InsertContentInsight): Promise<ContentInsight> {
     const [newInsight] = await db.insert(contentInsights).values(insight).returning();
     return newInsight;
@@ -778,6 +787,11 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(complianceRecords).orderBy(desc(complianceRecords.createdAt));
   }
 
+  async getComplianceRecordsByChannelIds(channelIds: number[]): Promise<ComplianceRecord[]> {
+    if (channelIds.length === 0) return [];
+    return await db.select().from(complianceRecords).where(inArray(complianceRecords.channelId, channelIds)).orderBy(desc(complianceRecords.createdAt));
+  }
+
   async createComplianceRecord(record: InsertComplianceRecord): Promise<ComplianceRecord> {
     const [newRecord] = await db.insert(complianceRecords).values(record).returning();
     return newRecord;
@@ -796,6 +810,16 @@ export class DatabaseStorage implements IStorage {
       return await db.select().from(growthStrategies).where(eq(growthStrategies.channelId, channelId)).orderBy(desc(growthStrategies.createdAt));
     }
     return await db.select().from(growthStrategies).orderBy(desc(growthStrategies.createdAt));
+  }
+
+  async getGrowthStrategiesByChannelIds(channelIds: number[]): Promise<GrowthStrategy[]> {
+    if (channelIds.length === 0) return [];
+    return await db.select().from(growthStrategies).where(inArray(growthStrategies.channelId, channelIds)).orderBy(desc(growthStrategies.createdAt));
+  }
+
+  async getGrowthStrategy(id: number): Promise<GrowthStrategy | undefined> {
+    const [row] = await db.select().from(growthStrategies).where(eq(growthStrategies.id, id)).limit(1);
+    return row;
   }
 
   async createGrowthStrategy(strategy: InsertGrowthStrategy): Promise<GrowthStrategy> {

@@ -905,6 +905,9 @@ export function registerContentRoutes(app: Express) {
     if (videoId === null) return;
     const video = await storage.getVideo(videoId);
     if (!video) return res.status(404).json({ message: "Video not found" });
+    const userChannels = await storage.getChannelsByUser(userId);
+    const userChannelIds = userChannels.map(c => c.id);
+    if (!userChannelIds.includes(video.channelId)) return res.status(403).json({ message: "Access denied" });
 
     try {
       const suggestions = await generateVideoMetadata({
@@ -1010,7 +1013,14 @@ export function registerContentRoutes(app: Express) {
     if (!userId) return;
     const channelId = req.query.channelId ? Number(req.query.channelId) : undefined;
     if (channelId !== undefined && isNaN(channelId)) return res.status(400).json({ error: "Invalid channelId" });
-    const insights = await storage.getContentInsights(channelId);
+    const userChannels = await storage.getChannelsByUser(userId);
+    const userChannelIds = userChannels.map(c => c.id);
+    if (channelId !== undefined) {
+      if (!userChannelIds.includes(channelId)) return res.status(403).json({ error: "Access denied" });
+      const insights = await storage.getContentInsights(channelId);
+      return res.json(insights);
+    }
+    const insights = await storage.getContentInsightsByChannelIds(userChannelIds);
     res.json(insights);
   }));
 
@@ -1075,7 +1085,14 @@ export function registerContentRoutes(app: Express) {
     if (!userId) return;
     const channelId = req.query.channelId ? Number(req.query.channelId) : undefined;
     if (channelId !== undefined && isNaN(channelId)) return res.status(400).json({ error: "Invalid channelId" });
-    const records = await storage.getComplianceRecords(channelId);
+    const userChannels = await storage.getChannelsByUser(userId);
+    const userChannelIds = userChannels.map(c => c.id);
+    if (channelId !== undefined) {
+      if (!userChannelIds.includes(channelId)) return res.status(403).json({ error: "Access denied" });
+      const records = await storage.getComplianceRecords(channelId);
+      return res.json(records);
+    }
+    const records = await storage.getComplianceRecordsByChannelIds(userChannelIds);
     res.json(records);
   }));
 
@@ -1152,7 +1169,14 @@ export function registerContentRoutes(app: Express) {
     if (!userId) return;
     const channelId = req.query.channelId ? Number(req.query.channelId) : undefined;
     if (channelId !== undefined && isNaN(channelId)) return res.status(400).json({ error: "Invalid channelId" });
-    const strategies = await storage.getGrowthStrategies(channelId);
+    const userChannels = await storage.getChannelsByUser(userId);
+    const userChannelIds = userChannels.map(c => c.id);
+    if (channelId !== undefined) {
+      if (!userChannelIds.includes(channelId)) return res.status(403).json({ error: "Access denied" });
+      const strategies = await storage.getGrowthStrategies(channelId);
+      return res.json(strategies);
+    }
+    const strategies = await storage.getGrowthStrategiesByChannelIds(userChannelIds);
     res.json(strategies);
   }));
 
@@ -1234,6 +1258,13 @@ export function registerContentRoutes(app: Express) {
     if (!parsed.success) {
       return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
     }
+    const existing = await storage.getGrowthStrategy(id);
+    if (!existing) return res.status(404).json({ error: "Not found" });
+    if (existing.channelId !== null && existing.channelId !== undefined) {
+      const userChannels = await storage.getChannelsByUser(userId);
+      const userChannelIds = userChannels.map(c => c.id);
+      if (!userChannelIds.includes(existing.channelId)) return res.status(403).json({ error: "Access denied" });
+    }
     const strategy = await storage.updateGrowthStrategy(id, { status: parsed.data.status });
     res.json(strategy);
     recordLearningEvent(userId, `growth_strategy_${parsed.data.status}`, {
@@ -1297,6 +1328,9 @@ export function registerContentRoutes(app: Express) {
         const allVideos = await storage.getVideosByUser(userId);
         videosToOptimize = allVideos.filter(v => videoIds.includes(v.id));
       } else if (channelId) {
+        const userChannels = await storage.getChannelsByUser(userId);
+        const userChannelIds = userChannels.map(c => c.id);
+        if (!userChannelIds.includes(channelId)) return res.status(403).json({ error: "Access denied" });
         videosToOptimize = await storage.getVideosByChannel(channelId);
       } else {
         videosToOptimize = await storage.getVideosByUser(userId);
@@ -1693,6 +1727,11 @@ export function registerContentRoutes(app: Express) {
     if (!userId) return;
     const videoId = parseNumericId(req.params.videoId as string as string, res, "video ID");
     if (videoId === null) return;
+    const video = await storage.getVideo(videoId);
+    if (!video) return res.status(404).json({ error: "Video not found" });
+    const userChannels = await storage.getChannelsByUser(userId);
+    const userChannelIds = userChannels.map(c => c.id);
+    if (!userChannelIds.includes(video.channelId)) return res.status(403).json({ error: "Access denied" });
     const versions = await storage.getVideoVersions(videoId);
     res.json(versions);
   }));
