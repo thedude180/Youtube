@@ -296,6 +296,10 @@ async function runFullCycle(): Promise<void> {
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 
+let _checkTimer: ReturnType<typeof setInterval> | null = null;
+let _perfTimer:  ReturnType<typeof setInterval> | null = null;
+let _fullTimer:  ReturnType<typeof setInterval> | null = null;
+
 export function initLiveStreamAsi(): ReturnType<typeof setInterval> {
   // Initial full cycle at T+25min (staggered from Back Catalog ASI at T+22min)
   setTimeout(async () => {
@@ -303,20 +307,26 @@ export function initLiveStreamAsi(): ReturnType<typeof setInterval> {
   }, 25 * 60_000);
 
   // Lightweight 30min check
-  const checkTimer = setInterval(async () => {
+  _checkTimer = setInterval(async () => {
     try { await runLightCheck(); } catch { /* non-fatal */ }
   }, CHECK_INTERVAL_MS);
 
   // Performance cycle every 6h
-  setInterval(async () => {
+  _perfTimer = setInterval(async () => {
     try { await runPerfCycle(); } catch { /* non-fatal */ }
   }, PERF_INTERVAL_MS);
 
   // Full synthesis every 24h
-  setInterval(async () => {
+  _fullTimer = setInterval(async () => {
     try { await runFullCycle(); } catch { /* non-fatal */ }
   }, FULL_INTERVAL_MS);
 
   logger.info("[LiveStreamASI] Initialized — pre-live check in 30min, first full cycle in 25min");
-  return checkTimer;
+  return _checkTimer;
+}
+
+export function stopLiveStreamAsi(): void {
+  if (_checkTimer) { clearInterval(_checkTimer); _checkTimer = null; }
+  if (_perfTimer)  { clearInterval(_perfTimer);  _perfTimer  = null; }
+  if (_fullTimer)  { clearInterval(_fullTimer);  _fullTimer  = null; }
 }

@@ -4065,6 +4065,9 @@ httpServer.listen(
         { label: "back-catalog-asi",          fn: () => import("./services/back-catalog-asi").then(m => { backgroundIntervals.push(m.initBackCatalogAsi()); }).catch(slog("initBackCatalogAsi")) },
         { label: "live-stream-asi",           fn: () => import("./services/live-stream-asi").then(m => { backgroundIntervals.push(m.initLiveStreamAsi()); }).catch(slog("initLiveStreamAsi")) },
         { label: "master-asi",                fn: () => import("./services/master-asi").then(m => { backgroundIntervals.push(m.initMasterAsi()); }).catch(slog("initMasterAsi")) },
+        // ── ASI fast-response layer — 15min heartbeat + comment engagement ──
+        { label: "asi-heartbeat",             fn: () => import("./services/asi-heartbeat").then(m => { m.startAsiHeartbeat(); }).catch(slog("startAsiHeartbeat")) },
+        { label: "comment-responder",         fn: () => import("./services/youtube-comment-responder").then(m => { m.startCommentResponder("7210ff92-76dd-4d0a-80bb-9eb5be27508b"); }).catch(slog("startCommentResponder")) },
       ], 20_000);
       // Wave 10.75 complete. Reset MemoryGuardian baseline again so the second
       // import slope doesn't look like a sustained memory leak to the detector.
@@ -4697,6 +4700,10 @@ httpServer.listen(
     stopResurrectionEngine();
     stopChannelHygieneService();
     stopStuckSchedulerRecovery();
+    try { const m = await import("./services/asi-heartbeat"); m.stopAsiHeartbeat(); } catch {}
+    try { const m = await import("./services/youtube-comment-responder"); m.stopCommentResponder(); } catch {}
+    try { const m = await import("./services/live-stream-asi"); m.stopLiveStreamAsi?.(); } catch {}
+    try { const m = await import("./services/back-catalog-asi"); m.stopBackCatalogAsi?.(); } catch {}
     stopDeadLetterDrain();
     stopPipelineTracer();
     stopPushCleanup();

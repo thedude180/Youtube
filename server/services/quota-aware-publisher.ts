@@ -27,14 +27,16 @@ import { createLogger } from "../lib/logger";
 import { setJitteredInterval } from "../lib/timer-utils";
 import { storage } from "../storage";
 import { uploadVideoToYouTube } from "../youtube";
+import { getState } from "../lib/service-state";
 
 const log = createLogger("quota-aware-publisher");
 
 // ─── Quota config ─────────────────────────────────────────────────────────────
 const QUOTA_RESET_HOUR_UTC = 7;
 const QUOTA_RESET_BUFFER_MIN = 5;
-const MAX_SHORTS_PER_DAY = 3;
-const MAX_LONGFORM_PER_DAY = 1;
+// Defaults used when goal-discovery hasn't run yet or returns no data
+const DEFAULT_MAX_SHORTS_PER_DAY = 3;
+const DEFAULT_MAX_LONGFORM_PER_DAY = 1;
 const QUOTA_COST_UPLOAD = 1600;
 const QUOTA_COST_THUMBNAIL = 50;
 const SAFE_QUOTA_LIMIT = 8000;
@@ -168,8 +170,8 @@ export async function runPublishCycle(userId: string, channelId: number): Promis
   const quotaUsed = await storage.getQuotaUsedToday(userId, windowStart);
 
   log.info(
-    `[QuotaPublisher] Daily counts — Shorts: ${todayCounts.short}/${MAX_SHORTS_PER_DAY}, ` +
-      `Long-form: ${todayCounts.longform}/${MAX_LONGFORM_PER_DAY}, ` +
+    `[QuotaPublisher] Daily counts — Shorts: ${todayCounts.short}/${MAX_SHORTS_PER_DAY} (goal-discovery), ` +
+      `Long-form: ${todayCounts.longform}/${MAX_LONGFORM_PER_DAY} (goal-discovery), ` +
       `Quota: ~${quotaUsed}/${SAFE_QUOTA_LIMIT} units`
   );
 
@@ -179,6 +181,11 @@ export async function runPublishCycle(userId: string, channelId: number): Promis
   }
 
   // ── Publish Shorts (up to daily limit) ─────────────────────────────────────
+  // Read dynamic caps set by goal-discovery — fall back to safe defaults
+  const goalState = await getState("goal_planner", `goals:${userId}`) as any ?? {};
+  const MAX_SHORTS_PER_DAY   = Math.round(goalState.targetShortsPerDay   ?? DEFAULT_MAX_SHORTS_PER_DAY);
+  const MAX_LONGFORM_PER_DAY = Math.round(goalState.targetLongFormPerDay ?? DEFAULT_MAX_LONGFORM_PER_DAY);
+
   const shortsRemaining = MAX_SHORTS_PER_DAY - todayCounts.short;
   if (shortsRemaining > 0) {
     const readyShorts = await storage.getReadyShortsPayloads(userId, shortsRemaining);

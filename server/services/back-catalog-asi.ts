@@ -242,6 +242,9 @@ async function runFullCycle(): Promise<void> {
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 
+let _lightTimer: ReturnType<typeof setInterval> | null = null;
+let _fullTimer:  ReturnType<typeof setInterval> | null = null;
+
 export function initBackCatalogAsi(): ReturnType<typeof setInterval> {
   // Initial delay: 22 min (well after back-catalog-runner fires at T+10-20min)
   setTimeout(async () => {
@@ -253,15 +256,20 @@ export function initBackCatalogAsi(): ReturnType<typeof setInterval> {
   }, 22 * 60_000);
 
   // Light cycle every 6h
-  const lightTimer = setInterval(async () => {
+  _lightTimer = setInterval(async () => {
     try { await runLightCycle(); } catch { /* non-fatal */ }
   }, LIGHT_INTERVAL_MS);
 
   // Full cycle every 24h
-  setInterval(async () => {
+  _fullTimer = setInterval(async () => {
     try { await runFullCycle(); } catch { /* non-fatal */ }
   }, FULL_INTERVAL_MS);
 
   logger.info("[BackCatalogASI] Initialized — first full cycle in 22min");
-  return lightTimer;
+  return _lightTimer;
+}
+
+export function stopBackCatalogAsi(): void {
+  if (_lightTimer) { clearInterval(_lightTimer); _lightTimer = null; }
+  if (_fullTimer)  { clearInterval(_fullTimer);  _fullTimer  = null; }
 }
