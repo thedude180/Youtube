@@ -5439,10 +5439,11 @@ async function migration095FailNewInnerTube400Videos(): Promise<void> {
 // 18103–18112: 2.3h–6.9h source videos queued 2026-06-19; FFmpeg for these
 //   sources OOMs the container during encoding even with the 20-min time gate,
 //   because per-segment peak memory (FFmpeg + Node.js heap) exceeds 512 MB.
-const LONG_STREAM_EDIT_JOB_IDS = [18117, 18229, 18103, 18104, 18105, 18106, 18107, 18109, 18112];
+const LONG_STREAM_EDIT_JOB_IDS = [18117, 18229, 18103, 18104, 18105, 18106, 18107, 18109, 18112, 18297];
 async function cancelLongStreamEditJobs(): Promise<void> {
+  // Layer A: cancel every job that was mid-run when the server crashed.
+  // Independent try/catch per layer so one DB error doesn't block the others.
   try {
-    // Layer A: cancel every job that was mid-run when the server crashed.
     const rProcessing = await db.execute(sql.raw(`
       UPDATE stream_edit_jobs
       SET status = 'cancelled'
@@ -5451,12 +5452,16 @@ async function cancelLongStreamEditJobs(): Promise<void> {
     const cancelledProcessing = (rProcessing as any)?.rowCount ?? 0;
     if (cancelledProcessing > 0) {
       log.info(
-        `[Boot] Cancelled ${cancelledProcessing} mid-run stream_edit_job(s) ` +
+        `[Boot] Layer A: cancelled ${cancelledProcessing} mid-run stream_edit_job(s) ` +
         `(status=processing → cancelled; prevents startup-recovery re-queue crash loop)`
       );
     }
+  } catch (err: any) {
+    log.warn(`[Boot] cancelLongStreamEditJobs Layer A failed (non-fatal): ${err?.message?.slice(0, 100)}`);
+  }
 
-    // Layer B: cancel known crash-loop job IDs in any eligible state.
+  // Layer B: cancel known crash-loop job IDs in any eligible state.
+  try {
     const idsSql = LONG_STREAM_EDIT_JOB_IDS.join(',');
     const rIds = await db.execute(sql.raw(`
       UPDATE stream_edit_jobs
@@ -5467,17 +5472,19 @@ async function cancelLongStreamEditJobs(): Promise<void> {
     const cancelledIds = (rIds as any)?.rowCount ?? 0;
     if (cancelledIds > 0) {
       log.info(
-        `[Boot] Cancelled ${cancelledIds} known-OOM stream_edit_job(s) ` +
+        `[Boot] Layer B: cancelled ${cancelledIds} known-OOM stream_edit_job(s) ` +
         `by ID: ${LONG_STREAM_EDIT_JOB_IDS.join(',')}`
       );
     }
+  } catch (err: any) {
+    log.warn(`[Boot] cancelLongStreamEditJobs Layer B failed (non-fatal): ${err?.message?.slice(0, 100)}`);
+  }
 
-    // Layer C: cancel ALL queued jobs with source > 7200 s (2 h).
-    // Even with the 20-min per-run time gate the per-segment FFmpeg peak memory
-    // (input demux + encode buffers + Node.js heap) routinely exceeds the
-    // 512 MB MemoryGuardian threshold, causing process.exit(1) → crash loop.
-    // Jobs for long sources must be re-submitted after the source file has been
-    // pre-trimmed to <2 h segments outside this process.
+  // Layer C: cancel ALL queued jobs with source > 7200 s (2 h).
+  // Even with the 20-min per-run time gate the per-segment FFmpeg peak memory
+  // (input demux + encode buffers + Node.js heap) routinely exceeds the
+  // 512 MB MemoryGuardian threshold, causing process.exit(1) → crash loop.
+  try {
     const rLong = await db.execute(sql.raw(`
       UPDATE stream_edit_jobs
       SET status = 'cancelled',
@@ -5494,7 +5501,7 @@ async function cancelLongStreamEditJobs(): Promise<void> {
       );
     }
   } catch (err: any) {
-    log.warn(`[Boot] cancelLongStreamEditJobs failed (non-fatal): ${err?.message?.slice(0, 100)}`);
+    log.warn(`[Boot] cancelLongStreamEditJobs Layer C failed (non-fatal): ${err?.message?.slice(0, 100)}`);
   }
 }
 
@@ -6161,6 +6168,92 @@ async function migration107CreateServicePerformanceMetrics(): Promise<void> {
   }
 }
 
+// ── Migration 108: Cancel queue items whose vault source is permanently gone ──
+// Items in autopilot_queue whose metadata.sourceYoutubeId points to a vault
+// entry with status='skipped' can never be encoded (the source video is private,
+// deleted, or age-restricted on YouTube).  Cancel them so they don't cycle every
+// 90 s in the publisher's skip loop.  Targets items like long-form-compilation
+// items 43704/43705/43708 whose source SEomXyf_T5w is permanently inaccessible.
+async function migration108CancelSkippedVaultSourceItems(): Promise<void> {
+  const FLAG = "migration:108:cancel_skipped_vault_source_items_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    const r = await db.execute(sql.raw(`
+      UPDATE autopilot_queue
+      SET status        = 'cancelled',
+          error_message = 'Migration 108: source vault entry permanently skipped — video private/deleted/age-restricted'
+      WHERE status IN ('scheduled','pending')
+        AND metadata->>'sourceYoutubeId' IS NOT NULL
+        AND metadata->>'sourceYoutubeId' IN (
+          SELECT youtube_id
+          FROM content_vault_backups
+          WHERE status = 'skipped'
+            AND download_error LIKE '%HTTP_400_ALL_CLIENTS%'
+        )
+    `));
+    const cnt = (r as any)?.rowCount ?? 0;
+    log.info(`[Migration 108] Cancelled ${cnt} queue item(s) whose vault source is permanently inaccessible`);
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 108] Failed (non-fatal): ${err?.message?.slice(0, 200)}`);
+    await setFlag(FLAG).catch(() => {});
+  }
+}
+
+// ── Migration 109: Permanently fail push_backlog "Video not found" items ──────
+// Push-backlog items with last_error='Video not found on YouTube' will NEVER
+// succeed — the video has been deleted or is private.  Mark them failed so the
+// backlog processor never retries them and wastes quota units.
+async function migration109FailNotFoundPushBacklogItems(): Promise<void> {
+  const FLAG = "migration:109:fail_not_found_push_backlog_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    const r = await db.execute(sql.raw(`
+      UPDATE youtube_push_backlog
+      SET status   = 'failed',
+          attempts = 99,
+          last_error = 'Permanently failed — video no longer exists on YouTube'
+      WHERE status NOT IN ('completed','failed')
+        AND last_error = 'Video not found on YouTube'
+    `));
+    const cnt = (r as any)?.rowCount ?? 0;
+    log.info(`[Migration 109] Permanently failed ${cnt} push_backlog item(s) with "Video not found" error`);
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 109] Failed (non-fatal): ${err?.message?.slice(0, 200)}`);
+    await setFlag(FLAG).catch(() => {});
+  }
+}
+
+// ── Non-flagged per-boot: cancel queue items pointing to non-BF6 vault sources
+// cleanupNonBF6QueueItems() cancels items where metadata.gameName is explicitly
+// non-BF6.  But items created with null gameName (benefit-of-doubt) that point
+// to AC/non-BF6 vault source videos slip through.  This function cross-references
+// the vault's game_name to catch those.  Must run after cleanupNonBF6QueueItems.
+async function cleanupNonBF6VaultSourcedQueueItems(): Promise<void> {
+  try {
+    const r = await db.execute(sql.raw(`
+      UPDATE autopilot_queue aq
+      SET status        = 'cancelled',
+          error_message = 'per-boot: source vault game_name is non-BF6 — off-brand content gate'
+      FROM content_vault_backups cvb
+      WHERE aq.status IN ('scheduled','pending')
+        AND aq.scheduled_at <= NOW() + INTERVAL '30 days'
+        AND aq.metadata->>'sourceYoutubeId' = cvb.youtube_id
+        AND cvb.game_name IS NOT NULL
+        AND cvb.game_name NOT ILIKE '%battlefield%'
+        AND cvb.game_name NOT ILIKE '%bf6%'
+        AND cvb.game_name NOT ILIKE '%bf 6%'
+    `));
+    const cnt = (r as any)?.rowCount ?? 0;
+    if (cnt > 0) {
+      log.warn(`[Boot] cleanupNonBF6VaultSourcedQueueItems: cancelled ${cnt} item(s) pointing to non-BF6 vault sources`);
+    }
+  } catch (err: any) {
+    log.warn(`[Boot] cleanupNonBF6VaultSourcedQueueItems failed (non-fatal): ${err?.message?.slice(0, 150)}`);
+  }
+}
+
 // ── Non-flagged per-boot: reset stale 'downloaded' vault entries ─────────────
 // When the production container restarts after a new deployment, vault files on
 // ephemeral local disk are lost.  Any vault entry that says status='downloaded'
@@ -6462,6 +6555,8 @@ export async function runStartupMigrations(): Promise<void> {
     await migration105AddFunnelVideoIds();
     await migration106CreateASITables();
     await migration107CreateServicePerformanceMetrics();
+    await migration108CancelSkippedVaultSourceItems();
+    await migration109FailNotFoundPushBacklogItems();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips
@@ -6492,6 +6587,10 @@ export async function runStartupMigrations(): Promise<void> {
     // restart so contamination from content-maximizer, past-stream extraction,
     // or back-catalog engine race conditions is always cleared before publishers fire.
     await cleanupNonBF6QueueItems();
+    // Non-flagged per-boot cross-reference cleanup — cancels items pointing to
+    // non-BF6 vault sources even when item metadata.gameName is null.
+    // Must run AFTER cleanupNonBF6QueueItems (relies on same focus-game semantics).
+    await cleanupNonBF6VaultSourcedQueueItems();
     // Non-flagged per-boot vault non-BF6 indexed cleanup — runs every restart.
     // Marks all non-BF6 indexed vault entries as skipped so they don't consume
     // yt-dlp slots, freeing the pipeline for BF6 Shorts/long-form clip encoding.
@@ -6521,11 +6620,12 @@ export async function runStartupMigrations(): Promise<void> {
         title:     `Boot-heal complete — ${105} migrations registered, per-boot cleanups ran`,
         severity:  "info",
         detail: {
-          totalMigrations:  107,
+          totalMigrations:  109,
           perBootCleanups: [
             "resetStaleDownloadedVaultEntries",
             "cancelLongStreamEditJobs",
             "cleanupNonBF6QueueItems",
+            "cleanupNonBF6VaultSourcedQueueItems",
             "cleanupNonBF6IndexedVaultEntries",
             "cleanupOrphanedQueueItems",
             "cleanupSkippedVaultFiles",
