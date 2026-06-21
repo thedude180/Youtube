@@ -471,13 +471,15 @@ export async function processUnprocessedCatalog(userId: string): Promise<{
 
       // Query directly by YouTube ID — avoids the 50-row pagination limit
       // that caused getVideosByUser() to miss existing videos and create duplicates.
+      // COALESCE checks legacy field names (youtubeVideoId, youtube_id, videoId)
+      // so older records don't get re-inserted as duplicates.
       const [existingVideo] = await db
         .select()
         .from(videos)
         .where(
           and(
             eq(videos.channelId, link.channelId),
-            sql`${videos.metadata}->>'youtubeId' = ${link.youtubeId}`
+            sql`COALESCE(${videos.metadata}->>'youtubeId', ${videos.metadata}->>'youtubeVideoId', ${videos.metadata}->>'youtube_id', ${videos.metadata}->>'videoId') = ${link.youtubeId}`
           )
         )
         .limit(1);

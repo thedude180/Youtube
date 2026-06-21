@@ -532,39 +532,45 @@ export class DatabaseStorage implements IStorage {
       const [channel] = await db.select().from(channels).where(eq(channels.id, video.channelId));
       const userId = channel?.userId;
       if (userId) {
-        const youtubeId = (video.metadata as any)?.youtubeId || `local_${newVideo.id}`;
-        const existing = await db.select({ id: contentVaultBackups.id })
-          .from(contentVaultBackups)
-          .where(and(
-            eq(contentVaultBackups.userId, userId),
-            eq(contentVaultBackups.youtubeId, youtubeId),
-          ));
-        if (existing.length === 0) {
-          const contentType = video.type === "short" ? "short" : video.type === "stream" ? "stream" : "video";
-          const gameName = extractGameName(video.title);
-          await db.insert(contentVaultBackups).values({
-            userId,
-            youtubeId,
-            platform: video.platform || "youtube",
-            contentType,
-            title: video.title,
-            description: video.description || "",
-            gameName,
-            duration: (video.metadata as any)?.duration || "PT0S",
-            metadata: {
-              thumbnailUrl: video.thumbnailUrl || "",
-              viewCount: (video.metadata as any)?.stats?.views || 0,
-              publishedAt: newVideo.publishedAt?.toISOString() || new Date().toISOString(),
-              durationSeconds: 0,
-            },
-            status: video.filePath ? "downloaded" : "indexed",
-            filePath: video.filePath || null,
-            backupUrl: (video.metadata as any)?.youtubeId
-              ? (contentType === "short"
-                ? `https://www.youtube.com/shorts/${(video.metadata as any).youtubeId}`
-                : `https://www.youtube.com/watch?v=${(video.metadata as any).youtubeId}`)
-              : null,
-          });
+        // Normalise: try the modern field name first, then the legacy variants
+        // that older ingestion paths used (youtubeVideoId, youtube_id, videoId).
+        const m = video.metadata as any;
+        const resolvedYtId: string | null =
+          m?.youtubeId || m?.youtubeVideoId || m?.youtube_id || m?.videoId || null;
+        // Skip vault entry creation for videos without a real YouTube ID —
+        // storing them as local_* produces fake entries that inflate counts.
+        if (resolvedYtId) {
+          const existing = await db.select({ id: contentVaultBackups.id })
+            .from(contentVaultBackups)
+            .where(and(
+              eq(contentVaultBackups.userId, userId),
+              eq(contentVaultBackups.youtubeId, resolvedYtId),
+            ));
+          if (existing.length === 0) {
+            const contentType = video.type === "short" ? "short" : video.type === "stream" ? "stream" : "video";
+            const gameName = extractGameName(video.title);
+            await db.insert(contentVaultBackups).values({
+              userId,
+              youtubeId: resolvedYtId,
+              platform: video.platform || "youtube",
+              contentType,
+              title: video.title,
+              description: video.description || "",
+              gameName,
+              duration: m?.duration || "PT0S",
+              metadata: {
+                thumbnailUrl: video.thumbnailUrl || "",
+                viewCount: m?.stats?.views || 0,
+                publishedAt: newVideo.publishedAt?.toISOString() || new Date().toISOString(),
+                durationSeconds: 0,
+              },
+              status: video.filePath ? "downloaded" : "indexed",
+              filePath: video.filePath || null,
+              backupUrl: contentType === "short"
+                ? `https://www.youtube.com/shorts/${resolvedYtId}`
+                : `https://www.youtube.com/watch?v=${resolvedYtId}`,
+            });
+          }
         }
       }
     } catch (e: any) {

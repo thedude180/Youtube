@@ -590,6 +590,14 @@ export async function indexAllChannelVideos(userId: string): Promise<{ indexed: 
     }
   }
 
+  if (allVideosRaw.length === 0) {
+    // Both yt-dlp and YouTube API returned nothing. This is almost always a
+    // cookies/auth problem or a network issue — not a real "0 videos" channel.
+    // Return early so we don't accidentally overwrite existing index state.
+    logger.error("[Vault] BOTH scraping paths returned 0 videos — index skipped. Check cookies auth and yt-dlp logs above.");
+    return { indexed: 0, newlyAdded: 0 };
+  }
+
   const allVideos = allVideosRaw;
   const deduped = new Map<string, ScrapedVideo>();
   for (const v of allVideos) {
@@ -1550,7 +1558,12 @@ export async function getVaultStats(userId: string): Promise<{
       totalSize: sql<number>`coalesce(sum(file_size), 0)::bigint`,
     })
       .from(contentVaultBackups)
-      .where(eq(contentVaultBackups.userId, userId))
+      .where(and(
+        eq(contentVaultBackups.userId, userId),
+        // Exclude local_* placeholder entries — they are not real channel videos
+        sql`${contentVaultBackups.youtubeId} NOT LIKE 'local_%'`,
+        sql`${contentVaultBackups.youtubeId} NOT LIKE 'clip_%'`,
+      ))
       .groupBy(contentVaultBackups.status, contentVaultBackups.contentType),
     db.select({ count: sql<number>`count(*)::int` })
       .from(contentVaultBackups)
@@ -1828,6 +1841,22 @@ export async function deduplicateVaultEntries(): Promise<void> {
     }
 
     logger.info("[Vault] Dedup sweep complete");
+
+    // Purge local_* placeholder entries where a real (11-char) vault row exists
+    // for the same user. These were created by createVideo() when metadata.youtubeId
+    // was absent — they inflate vault counts and never correspond to real videos.
+    const localOrphans = await db.execute(sql`
+      DELETE FROM content_vault_backups
+      WHERE youtube_id LIKE 'local_%'
+        AND user_id IN (
+          SELECT DISTINCT user_id FROM content_vault_backups
+          WHERE youtube_id NOT LIKE 'local_%'
+        )
+      RETURNING id
+    `);
+    if (localOrphans.rows?.length > 0) {
+      logger.info(`[Vault] Purged ${localOrphans.rows.length} local_* placeholder entries that had real vault counterparts`);
+    }
   } catch (err: any) {
     logger.warn("[Vault] Dedup sweep failed (non-fatal):", err?.message);
   }
