@@ -16,6 +16,7 @@
 import { db } from "../db";
 import {
   users,
+  autonomousActions,
 } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { storage } from "../storage";
@@ -107,6 +108,15 @@ async function executeApprovedActionsForUser(userId: string): Promise<void> {
     if (quotaExhausted) break;
 
     try {
+      // Auto-approve high-confidence actions that haven't been approved yet
+      if (action.confidenceScore >= 80 && action.status === 'pending') {
+        await db.update(autonomousActions)
+          .set({ status: 'auto_approved', autoApproved: true })
+          .where(eq(autonomousActions.id, action.id));
+        action.status = 'auto_approved';
+        action.autoApproved = true;
+      }
+
       await routeAndExecute(userId, action, (exhausted) => {
         if (exhausted) quotaExhausted = true;
       });
@@ -338,6 +348,21 @@ async function handleMetadataUpdate(
     },
   });
 
+  // Schedule outcome measurement 48h from now
+  if (action.targetId) {
+    const beforeViews = (action.beforeSnapshot as any)?.views ?? 0;
+    const beforeCtr = (action.beforeSnapshot as any)?.ctr ?? 0;
+    const engineSource = action.actionType.includes("title") || action.actionType.includes("description")
+      ? "ab-testing-engine"
+      : action.actionType.includes("tag") || action.actionType.includes("seo")
+      ? "performance-feedback-loop"
+      : "revenue-attribution-engine";
+
+    import("./outcome-tracker").then(({ scheduleOutcomeMeasurement }) =>
+      scheduleOutcomeMeasurement(action.userId, action.id, action.targetId!, engineSource, beforeViews, beforeCtr)
+    ).catch(() => {});
+  }
+
   logger.info("Metadata update queued", {
     userId,
     actionId: action.id,
@@ -431,6 +456,21 @@ async function handleSeoFullUpdate(
       pushJobId: jobId,
     },
   });
+
+  // Schedule outcome measurement 48h from now
+  if (action.targetId) {
+    const beforeViews = (action.beforeSnapshot as any)?.views ?? 0;
+    const beforeCtr = (action.beforeSnapshot as any)?.ctr ?? 0;
+    const engineSource = action.actionType.includes("title") || action.actionType.includes("description")
+      ? "ab-testing-engine"
+      : action.actionType.includes("tag") || action.actionType.includes("seo")
+      ? "performance-feedback-loop"
+      : "revenue-attribution-engine";
+
+    import("./outcome-tracker").then(({ scheduleOutcomeMeasurement }) =>
+      scheduleOutcomeMeasurement(action.userId, action.id, action.targetId!, engineSource, beforeViews, beforeCtr)
+    ).catch(() => {});
+  }
 
   logger.info("SEO full update queued", {
     userId,

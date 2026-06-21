@@ -79,7 +79,7 @@ import {
   type InsertActionExecutionLog, type ActionExecutionLog,
   type InsertRevenueAttribution, type RevenueAttribution,
 } from "@shared/schema";
-import { eq, desc, sql, and, gte, lte, lt, inArray } from "drizzle-orm";
+import { eq, desc, sql, and, gte, lte, lt, inArray, isNull } from "drizzle-orm";
 import { extractGameName } from "./services/video-vault";
 
 import { createLogger } from "./lib/logger";
@@ -2019,8 +2019,8 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(autonomousActions)
       .where(and(
         eq(autonomousActions.userId, userId),
-        eq(autonomousActions.status, "approved"),
-        sql`${autonomousActions.executedAt} IS NULL`,
+        inArray(autonomousActions.status, ["approved", "auto_approved"]),
+        isNull(autonomousActions.executedAt),
       ))
       .orderBy(desc(autonomousActions.createdAt))
       .limit(limit);

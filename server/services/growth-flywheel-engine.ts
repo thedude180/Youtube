@@ -258,20 +258,23 @@ Return JSON: {
 
     if (result.autonomousAction?.actionType && result.autonomousAction?.confidenceScore >= 60) {
       const action = result.autonomousAction;
-      const autoApprove = action.confidenceScore >= AUTO_APPROVE_THRESHOLD;
+      const confidenceScore = action.confidenceScore ?? 50;
+      const autoApproved = confidenceScore >= 80;
+      const approvalRequired = confidenceScore < 80;
+      const status = autoApproved ? "auto_approved" : "pending";
 
       await db.insert(autonomousActions).values({
         userId,
         actionType: action.actionType,
         targetEntity: action.targetEntity || "video",
         reasoning: action.reasoning || "",
-        confidenceScore: action.confidenceScore,
-        approvalRequired: !autoApprove,
-        autoApproved: autoApprove,
-        status: autoApprove ? "approved" : "pending",
+        confidenceScore,
+        approvalRequired,
+        autoApproved,
+        status,
       });
 
-      if (autoApprove) {
+      if (autoApproved) {
         await executeAutonomousAction(userId, action);
       }
     }
