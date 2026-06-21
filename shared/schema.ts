@@ -5907,6 +5907,8 @@ export type MomentumSnapshot = typeof momentumSnapshots.$inferSelect;
 export type PeakTimeAnalysis = typeof peakTimeAnalysis.$inferSelect;
 export type PlatformPriorityRank = typeof platformPriorityRanks.$inferSelect;
 export type RevenueAttribution = typeof revenueAttribution.$inferSelect;
+export const insertRevenueAttributionSchema = createInsertSchema(revenueAttribution).omit({ id: true, createdAt: true });
+export type InsertRevenueAttribution = z.infer<typeof insertRevenueAttributionSchema>;
 export type CreatorMarketplaceListing = typeof creatorMarketplaceListings.$inferSelect;
 export type ContentVaultBackup = typeof contentVaultBackups.$inferSelect;
 export type ContractAnalysis = typeof contractAnalyses.$inferSelect;
@@ -10014,61 +10016,54 @@ export const insertContentPerformanceInsightSchema = createInsertSchema(contentP
 export type InsertContentPerformanceInsight = z.infer<typeof insertContentPerformanceInsightSchema>;
 export type ContentPerformanceInsight = typeof contentPerformanceInsights.$inferSelect;
 
-// ── A/B Testing Engine ────────────────────────────────────────────────────────
-// Two-variant title tests. Evaluates CTR after 48h and promotes the winner.
-export const abTests = pgTable("ab_tests", {
+// ── YouTube Output Metrics ────────────────────────────────────────────────────
+// Per-video analytics snapshots used by the performance learner + feedback loop.
+export const youtubeOutputMetrics = pgTable("youtube_output_metrics", {
   id: serial("id").primaryKey(),
   userId: text("user_id").notNull(),
   youtubeVideoId: text("youtube_video_id").notNull(),
-  variantATitle: text("variant_a_title").notNull(),
-  variantBTitle: text("variant_b_title").notNull(),
-  variantACtr: real("variant_a_ctr"),
-  variantBCtr: real("variant_b_ctr"),
-  variantAViews: integer("variant_a_views"),
-  variantBViews: integer("variant_b_views"),
-  currentVariant: text("current_variant").notNull().default("a"),
-  winner: text("winner"),           // "a" | "b" | null while running
-  status: text("status").notNull().default("running"), // running | completed | cancelled
-  evaluateAt: timestamp("evaluate_at").notNull(),
-  switchedAt: timestamp("switched_at"),
-  completedAt: timestamp("completed_at"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+  sourceVideoId: integer("source_video_id"),
+  contentType: text("content_type").notNull(),
+  durationSec: integer("duration_sec"),
+  durationBucket: text("duration_bucket"),
+  gameName: text("game_name"),
+  postingWindow: text("posting_window"),
+  impressions: integer("impressions").default(0),
+  ctr: real("ctr").default(0),
+  views: integer("views").default(0),
+  averageViewDurationSec: integer("average_view_duration_sec").default(0),
+  averageViewPercent: real("average_view_percent").default(0),
+  watchTimeMinutes: real("watch_time_minutes").default(0),
+  likes: integer("likes").default(0),
+  comments: integer("comments").default(0),
+  subscribersGained: integer("subscribers_gained").default(0),
+  retentionDropOffSec: integer("retention_drop_off_sec"),
+  first24hViews: integer("first_24h_views").default(0),
+  first72hViews: integer("first_72h_views").default(0),
+  sevenDayViews: integer("seven_day_views").default(0),
+  performanceScore: real("performance_score").default(0),
+  hookRetentionPct: real("hook_retention_pct"),
+  thumbnailStyleTag: text("thumbnail_style_tag"),
+  measuredAt: timestamp("measured_at"),
+  publishedAt: timestamp("published_at"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
 }, (t) => [
-  index("abt_user_idx").on(t.userId),
-  index("abt_video_idx").on(t.youtubeVideoId),
-  index("abt_status_idx").on(t.status),
-  index("abt_evaluate_idx").on(t.evaluateAt),
+  index("yom_user_idx").on(t.userId),
+  index("yom_type_idx").on(t.contentType),
+  index("yom_bucket_idx").on(t.durationBucket),
+  index("yom_game_idx").on(t.gameName),
+  index("yom_ytid_idx").on(t.youtubeVideoId),
+  index("yom_hook_idx").on(t.hookRetentionPct),
+  index("yom_thumb_style_idx").on(t.thumbnailStyleTag),
 ]);
 
-export const insertAbTestSchema = createInsertSchema(abTests).omit({ id: true, createdAt: true });
-export type InsertAbTest = z.infer<typeof insertAbTestSchema>;
-export type AbTest = typeof abTests.$inferSelect;
+export const insertYoutubeOutputMetricsSchema = createInsertSchema(youtubeOutputMetrics).omit({ id: true, createdAt: true });
+export type InsertYoutubeOutputMetrics = z.infer<typeof insertYoutubeOutputMetricsSchema>;
+export type YoutubeOutputMetrics = typeof youtubeOutputMetrics.$inferSelect;
 
-// ── Revenue Attribution ───────────────────────────────────────────────────────
-// Aggregated revenue metrics by content dimension for optimization decisions.
-export const revenueAttribution = pgTable("revenue_attribution", {
-  id: serial("id").primaryKey(),
-  userId: text("user_id").notNull(),
-  gameTitle: text("game_title"),
-  format: text("format").notNull().default("long_form"),
-  durationBucketMin: integer("duration_bucket_min"),
-  dayOfWeek: integer("day_of_week"),    // 0=Sun, 6=Sat
-  publishHour: integer("publish_hour"), // 0-23 UTC
-  avgRpm: real("avg_rpm"),              // revenue per 1000 views
-  avgCpm: real("avg_cpm"),
-  avgEstimatedRevenue: real("avg_estimated_revenue"),
-  totalEstimatedRevenue: real("total_estimated_revenue"),
-  sampleSize: integer("sample_size").notNull().default(0),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-}, (t) => [
-  index("ra_user_game_idx").on(t.userId, t.gameTitle),
-  index("ra_user_format_idx").on(t.userId, t.format),
-  index("ra_updated_idx").on(t.updatedAt),
-]);
-
-export const insertRevenueAttributionSchema = createInsertSchema(revenueAttribution).omit({ id: true, updatedAt: true });
-export type InsertRevenueAttribution = z.infer<typeof insertRevenueAttributionSchema>;
-export type RevenueAttribution = typeof revenueAttribution.$inferSelect;
+// NOTE: abTests and revenueAttribution tables already exist earlier in this file.
+// The A/B testing and revenue engines use those pre-existing definitions.
 
 // ── Autonomous Action Execution Log ──────────────────────────────────────────
 // Tracks every time an approved autonomous action is executed (or attempted).

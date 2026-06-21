@@ -46,6 +46,11 @@ import { registerStreamWorkers } from "./features/stream/worker.js";
 
 import { startStreamWatcher, stopStreamWatcher } from "./services/stream-watcher.js";
 import { startAutopilotScheduler, stopAutopilotScheduler } from "./services/v2-autopilot-scheduler.js";
+import { startPerformanceFeedbackLoop, stopPerformanceFeedbackLoop } from "./services/performance-feedback-loop.js";
+import { startActionExecutor, stopActionExecutor } from "./services/action-executor.js";
+import { startAbTestingEngine, stopAbTestingEngine } from "./services/ab-testing-engine.js";
+import { startRevenueAttributionEngine, stopRevenueAttributionEngine } from "./services/revenue-attribution-engine.js";
+import { startClipExtractionWorker, stopClipExtractionWorker } from "./services/clip-extraction-worker.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isProd = process.env.NODE_ENV === "production";
@@ -108,6 +113,13 @@ async function main() {
   startStreamWatcher();
   startAutopilotScheduler();
 
+  // Ultimate-version systems: analytics-driven learning + execution loops
+  startPerformanceFeedbackLoop();
+  startActionExecutor();
+  startAbTestingEngine();
+  startRevenueAttributionEngine();
+  startClipExtractionWorker();
+
   // Re-trip the YouTube quota breaker if today's DB usage already exceeded the limit
   // (prevents a server restart from silently clearing a tripped breaker mid-day)
   import("./services/youtube-quota-tracker.js")
@@ -146,6 +158,11 @@ async function main() {
     log.info(`Shutting down (${signal})`);
     stopStreamWatcher();
     stopAutopilotScheduler();
+    stopPerformanceFeedbackLoop();
+    stopActionExecutor();
+    stopAbTestingEngine();
+    stopRevenueAttributionEngine();
+    stopClipExtractionWorker();
     server.close();
     await stopJobQueue();
     await pool.end();

@@ -435,3 +435,157 @@ export async function fetchTopFans(userId: string): Promise<{
 }> {
   return { topFans: [], totalSuperfans: 0, superfanGrowthRate: 0, source: "none" };
 }
+
+/**
+ * Fetch per-video analytics stats from the YouTube Analytics API.
+ * Used by the A/B testing engine (CTR) and performance learner.
+ * Returns empty object if token unavailable, quota exceeded, or video too new.
+ */
+export async function fetchVideoAnalytics(
+  userId: string,
+  youtubeVideoId: string,
+): Promise<Partial<{
+  views: number;
+  impressions: number;
+  ctr: number;
+  averageViewDurationSec: number;
+  averageViewPercent: number;
+  watchTimeMinutes: number;
+  likes: number;
+  comments: number;
+  subscribersGained: number;
+}>> {
+  try {
+    const ch = await getFirstChannelForUser(userId);
+    if (!ch || !ch.accessToken) return {};
+
+    const rows = await fetchAnalyticsReport(
+      ch.accessToken,
+      ch.channelId,
+      {
+        startDate: daysAgoStr(365),
+        endDate: daysAgoStr(0),
+        metrics: "views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,subscribersGained,likes,comments",
+        filters: `video==${youtubeVideoId}`,
+      },
+      userId,
+    );
+
+    if (!rows || rows.length === 0) return {};
+
+    const [views, minutes, avgViewDur, avgViewPct, subs, likes, comments] = rows[0];
+
+    return {
+      views: Number(views) || 0,
+      watchTimeMinutes: Number(minutes) || 0,
+      averageViewDurationSec: Math.round(Number(avgViewDur) || 0),
+      averageViewPercent: Number(avgViewPct) || 0,
+      subscribersGained: Number(subs) || 0,
+      likes: Number(likes) || 0,
+      comments: Number(comments) || 0,
+    };
+  } catch (err: any) {
+    logger.warn(`[analytics] fetchVideoAnalytics error for ${youtubeVideoId}: ${err?.message?.slice(0, 100)}`);
+    return {};
+  }
+}
+
+/**
+ * Fetch per-video revenue metrics (estimatedRevenue, CPM, views) from the
+ * YouTube Analytics API. Requires the channel to be monetized — returns null
+ * revenue/cpm gracefully on 403 (not monetized) without throwing.
+ * Processes in batches of <=50 video IDs per API call.
+ */
+export async function getVideoRevenueMetrics(
+  accessToken: string,
+  videoIds: string[],
+  channelId: string,
+): Promise<Array<{
+  videoId: string;
+  estimatedRevenue: number | null;
+  rpm: number | null;
+  cpm: number | null;
+  views: number;
+  publishedAt?: string;
+}>> {
+  if (!accessToken || accessToken === "dev_api_key_mode" || videoIds.length === 0) {
+    return [];
+  }
+
+  const BATCH_SIZE = 50;
+  const results: Array<{
+    videoId: string;
+    estimatedRevenue: number | null;
+    rpm: number | null;
+    cpm: number | null;
+    views: number;
+    publishedAt?: string;
+  }> = [];
+
+  for (let i = 0; i < videoIds.length; i += BATCH_SIZE) {
+    const batch = videoIds.slice(i, i + BATCH_SIZE);
+    const filterValue = batch.map(id => `video==${id}`).join(",");
+
+    try {
+      const searchParams = new URLSearchParams({
+        ids: `channel==${channelId || "MINE"}`,
+        startDate: "2015-01-01",
+        endDate: new Date().toISOString().split("T")[0],
+        metrics: "estimatedRevenue,cpm,views",
+        dimensions: "video",
+        filters: filterValue,
+        maxResults: String(BATCH_SIZE),
+        sort: "video",
+      });
+      const url = `${YT_ANALYTICS_BASE}?${searchParams}`;
+
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        signal: AbortSignal.timeout(30000),
+      });
+
+      if (!res.ok) {
+        if (res.status === 403 || res.status === 401) {
+          logger.info(`[analytics] getVideoRevenueMetrics: not monetized/auth (${res.status}) — null revenue for batch`);
+          for (const videoId of batch) {
+            results.push({ videoId, estimatedRevenue: null, rpm: null, cpm: null, views: 0 });
+          }
+          continue;
+        }
+        const errBody = await res.text();
+        logger.warn(`[analytics] getVideoRevenueMetrics API error`, { status: res.status, body: errBody.slice(0, 200) });
+        for (const videoId of batch) {
+          results.push({ videoId, estimatedRevenue: null, rpm: null, cpm: null, views: 0 });
+        }
+        continue;
+      }
+
+      const data = await res.json() as any;
+      const rows: any[] = data.rows || [];
+      const rowMap = new Map<string, any[]>();
+      for (const row of rows) {
+        rowMap.set(String(row[0]), row);
+      }
+
+      for (const videoId of batch) {
+        const row = rowMap.get(videoId);
+        if (row) {
+          const estimatedRevenue = row[1] != null ? Number(row[1]) : null;
+          const cpm = row[2] != null ? Number(row[2]) : null;
+          const views = Number(row[3]) || 0;
+          const rpm = (estimatedRevenue != null && views > 0) ? Math.round((estimatedRevenue / views) * 1000 * 100) / 100 : null;
+          results.push({ videoId, estimatedRevenue, rpm, cpm, views });
+        } else {
+          results.push({ videoId, estimatedRevenue: null, rpm: null, cpm: null, views: 0 });
+        }
+      }
+    } catch (err: any) {
+      logger.warn(`[analytics] getVideoRevenueMetrics batch error: ${err?.message?.slice(0, 100)}`);
+      for (const videoId of batch) {
+        results.push({ videoId, estimatedRevenue: null, rpm: null, cpm: null, views: 0 });
+      }
+    }
+  }
+
+  return results;
+}

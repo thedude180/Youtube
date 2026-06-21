@@ -71,6 +71,12 @@ import {
   studioVideos,
   type StudioVideo, type InsertStudioVideo,
   tokenBudgetUsage,
+  autonomousActions,
+  actionExecutionLog,
+  revenueAttribution,
+  youtubeOutputMetrics,
+  type InsertActionExecutionLog, type ActionExecutionLog,
+  type InsertRevenueAttribution, type RevenueAttribution,
 } from "@shared/schema";
 import { eq, desc, sql, and, gte, lte, lt, inArray } from "drizzle-orm";
 import { extractGameName } from "./services/video-vault";
@@ -345,6 +351,22 @@ export interface IStorage {
   getTokenBudgetAlertSentAt(engine: string, day: string): Promise<number | null>;
   setTokenBudgetAlertSent(engine: string, day: string, sentAt: number): Promise<void>;
   deleteOldTokenBudgetUsage(olderThanDays: number): Promise<number>;
+
+  // ── Autonomous Action Executor ────────────────────────────────────────────
+  getPendingAutonomousActions(userId: string, limit?: number): Promise<any[]>;
+  markActionExecuted(actionId: number, outcome: "success" | "failed" | "skipped", details?: Record<string, any>): Promise<void>;
+  insertActionExecutionLog(data: InsertActionExecutionLog): Promise<ActionExecutionLog>;
+  getActionExecutionHistory(userId: string, limit?: number): Promise<ActionExecutionLog[]>;
+
+  // ── Revenue Attribution ───────────────────────────────────────────────────
+  upsertRevenueAttribution(data: InsertRevenueAttribution): Promise<RevenueAttribution>;
+  getRevenueAttributions(userId: string, filter?: { gameTitle?: string }): Promise<RevenueAttribution[]>;
+
+  // ── Performance Feedback Loop ─────────────────────────────────────────────
+  getPerformanceInsights(userId: string, contentType?: string): Promise<any[]>;
+  getBestPerformingGame(userId: string, contentType: string): Promise<string | null>;
+  getBestPerformingDuration(userId: string): Promise<number>;
+  getBestPublishHour(userId: string): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1984,6 +2006,144 @@ export class DatabaseStorage implements IStorage {
       .where(lt(tokenBudgetUsage.day, cutoffDay))
       .returning({ engine: tokenBudgetUsage.engine });
     return deleted.length;
+  }
+
+  // ── Autonomous Action Executor ────────────────────────────────────────────
+
+  async getPendingAutonomousActions(userId: string, limit: number = 10): Promise<any[]> {
+    return await db.select().from(autonomousActions)
+      .where(and(
+        eq(autonomousActions.userId, userId),
+        eq(autonomousActions.status, "approved"),
+        sql`${autonomousActions.executedAt} IS NULL`,
+      ))
+      .orderBy(desc(autonomousActions.createdAt))
+      .limit(limit);
+  }
+
+  async markActionExecuted(actionId: number, outcome: "success" | "failed" | "skipped", details?: Record<string, any>): Promise<void> {
+    const status = outcome === "success" ? "executed" : outcome === "skipped" ? "skipped" : "failed";
+    await db.update(autonomousActions)
+      .set({
+        status,
+        executedAt: new Date(),
+        afterSnapshot: details ? (details as any) : undefined,
+      } as any)
+      .where(eq(autonomousActions.id, actionId));
+  }
+
+  async insertActionExecutionLog(data: InsertActionExecutionLog): Promise<ActionExecutionLog> {
+    const [row] = await db.insert(actionExecutionLog).values(data).returning();
+    return row;
+  }
+
+  async getActionExecutionHistory(userId: string, limit: number = 50): Promise<ActionExecutionLog[]> {
+    return await db.select().from(actionExecutionLog)
+      .where(eq(actionExecutionLog.userId, userId))
+      .orderBy(desc(actionExecutionLog.executedAt))
+      .limit(limit);
+  }
+
+  // ── Revenue Attribution ───────────────────────────────────────────────────
+
+  async upsertRevenueAttribution(data: InsertRevenueAttribution): Promise<RevenueAttribution> {
+    // contentId is the unique aggregation key (game|format|duration|day|hour).
+    // Update the existing row if one exists for this user + contentId, else insert.
+    const existing = data.contentId
+      ? await db.select().from(revenueAttribution)
+          .where(and(
+            eq(revenueAttribution.userId, data.userId),
+            eq(revenueAttribution.contentId, data.contentId),
+          ))
+          .limit(1)
+      : [];
+
+    if (existing.length > 0) {
+      const [updated] = await db.update(revenueAttribution)
+        .set(data as any)
+        .where(eq(revenueAttribution.id, existing[0].id))
+        .returning();
+      return updated;
+    }
+
+    const [row] = await db.insert(revenueAttribution).values(data).returning();
+    return row;
+  }
+
+  async getRevenueAttributions(userId: string, filter?: { gameTitle?: string }): Promise<RevenueAttribution[]> {
+    const conditions: any[] = [eq(revenueAttribution.userId, userId)];
+    if (filter?.gameTitle) {
+      conditions.push(eq(revenueAttribution.contentTitle, filter.gameTitle));
+    }
+    return await db.select().from(revenueAttribution)
+      .where(and(...conditions))
+      .orderBy(desc(revenueAttribution.createdAt))
+      .limit(500);
+  }
+
+  // ── Performance Feedback Loop ─────────────────────────────────────────────
+
+  async getPerformanceInsights(userId: string, contentType?: string): Promise<any[]> {
+    const conditions: any[] = [eq(youtubeOutputMetrics.userId, userId)];
+    if (contentType) conditions.push(eq(youtubeOutputMetrics.contentType, contentType));
+    return await db.select().from(youtubeOutputMetrics)
+      .where(and(...conditions))
+      .orderBy(desc(youtubeOutputMetrics.measuredAt))
+      .limit(200);
+  }
+
+  async getBestPerformingGame(userId: string, contentType: string): Promise<string | null> {
+    const rows = await db.select({ gameName: youtubeOutputMetrics.gameName })
+      .from(youtubeOutputMetrics)
+      .where(and(
+        eq(youtubeOutputMetrics.userId, userId),
+        eq(youtubeOutputMetrics.contentType, contentType),
+        sql`${youtubeOutputMetrics.gameName} IS NOT NULL`,
+        sql`${youtubeOutputMetrics.views} > 0`,
+      ))
+      .groupBy(youtubeOutputMetrics.gameName)
+      .having(sql`count(*) >= 3`)
+      .orderBy(sql`avg(views) * avg(average_view_percent) desc`)
+      .limit(1);
+    return rows[0]?.gameName ?? null;
+  }
+
+  async getBestPerformingDuration(userId: string): Promise<number> {
+    const BUCKET_TO_MIN: Record<string, number> = {
+      "long_8_10": 8, "long_10_15": 10, "long_15_20": 15,
+      "long_20_30": 20, "long_30_45": 30, "long_45_60": 45,
+    };
+    const rows = await db.select({ durationBucket: youtubeOutputMetrics.durationBucket })
+      .from(youtubeOutputMetrics)
+      .where(and(
+        eq(youtubeOutputMetrics.userId, userId),
+        eq(youtubeOutputMetrics.contentType, "long_form"),
+        sql`${youtubeOutputMetrics.durationBucket} IS NOT NULL`,
+      ))
+      .groupBy(youtubeOutputMetrics.durationBucket)
+      .having(sql`count(*) >= 3`)
+      .orderBy(sql`avg(performance_score) desc`)
+      .limit(1);
+    const bucket = rows[0]?.durationBucket;
+    return (bucket && BUCKET_TO_MIN[bucket]) ? BUCKET_TO_MIN[bucket] : 10;
+  }
+
+  async getBestPublishHour(userId: string): Promise<number> {
+    const rows = await db.select({
+      publishHour: sql<number>`extract(hour from published_at)::int`,
+    })
+      .from(youtubeOutputMetrics)
+      .where(and(
+        eq(youtubeOutputMetrics.userId, userId),
+        sql`${youtubeOutputMetrics.publishedAt} IS NOT NULL`,
+        sql`${youtubeOutputMetrics.views} > 0`,
+      ))
+      .groupBy(sql`extract(hour from published_at)`)
+      .having(sql`count(*) >= 3`)
+      .orderBy(sql`avg(views) desc`)
+      .limit(1);
+    const hour = rows[0]?.publishHour != null ? Number(rows[0].publishHour) : null;
+    return (hour != null && Number.isFinite(hour) && hour >= 0 && hour <= 23) ? hour : 15;
   }
 }
 
