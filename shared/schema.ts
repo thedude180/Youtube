@@ -9987,3 +9987,140 @@ export const shortSlotClaims = pgTable("short_slot_claims", {
   index("ssc_user_idx").on(t.userId),
   index("ssc_expires_idx").on(t.expiresAt),
 ]);
+
+// ── Performance Feedback Loop ─────────────────────────────────────────────────
+// Per-(user, game, format, duration, hour) aggregated performance metrics.
+// Updated every 6h from YouTube Analytics — feeds back into content decisions.
+export const contentPerformanceInsights = pgTable("content_performance_insights", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  gameTitle: text("game_title").notNull(),
+  format: text("format").notNull().default("long_form"), // long_form | shorts
+  durationBucketMin: integer("duration_bucket_min"),    // nearest duration bucket
+  publishHour: integer("publish_hour"),                 // 0-23 UTC
+  avgCtr: real("avg_ctr"),
+  avgWatchTimePercent: real("avg_watch_time_percent"),
+  avgViews: integer("avg_views"),
+  avgAvdSec: real("avg_avd_sec"),                       // average view duration seconds
+  sampleSize: integer("sample_size").notNull().default(0),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (t) => [
+  index("cpi_user_game_idx").on(t.userId, t.gameTitle),
+  index("cpi_user_format_idx").on(t.userId, t.format),
+  index("cpi_updated_idx").on(t.updatedAt),
+]);
+
+export const insertContentPerformanceInsightSchema = createInsertSchema(contentPerformanceInsights).omit({ id: true, updatedAt: true });
+export type InsertContentPerformanceInsight = z.infer<typeof insertContentPerformanceInsightSchema>;
+export type ContentPerformanceInsight = typeof contentPerformanceInsights.$inferSelect;
+
+// ── A/B Testing Engine ────────────────────────────────────────────────────────
+// Two-variant title tests. Evaluates CTR after 48h and promotes the winner.
+export const abTests = pgTable("ab_tests", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  youtubeVideoId: text("youtube_video_id").notNull(),
+  variantATitle: text("variant_a_title").notNull(),
+  variantBTitle: text("variant_b_title").notNull(),
+  variantACtr: real("variant_a_ctr"),
+  variantBCtr: real("variant_b_ctr"),
+  variantAViews: integer("variant_a_views"),
+  variantBViews: integer("variant_b_views"),
+  currentVariant: text("current_variant").notNull().default("a"),
+  winner: text("winner"),           // "a" | "b" | null while running
+  status: text("status").notNull().default("running"), // running | completed | cancelled
+  evaluateAt: timestamp("evaluate_at").notNull(),
+  switchedAt: timestamp("switched_at"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => [
+  index("abt_user_idx").on(t.userId),
+  index("abt_video_idx").on(t.youtubeVideoId),
+  index("abt_status_idx").on(t.status),
+  index("abt_evaluate_idx").on(t.evaluateAt),
+]);
+
+export const insertAbTestSchema = createInsertSchema(abTests).omit({ id: true, createdAt: true });
+export type InsertAbTest = z.infer<typeof insertAbTestSchema>;
+export type AbTest = typeof abTests.$inferSelect;
+
+// ── Revenue Attribution ───────────────────────────────────────────────────────
+// Aggregated revenue metrics by content dimension for optimization decisions.
+export const revenueAttribution = pgTable("revenue_attribution", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  gameTitle: text("game_title"),
+  format: text("format").notNull().default("long_form"),
+  durationBucketMin: integer("duration_bucket_min"),
+  dayOfWeek: integer("day_of_week"),    // 0=Sun, 6=Sat
+  publishHour: integer("publish_hour"), // 0-23 UTC
+  avgRpm: real("avg_rpm"),              // revenue per 1000 views
+  avgCpm: real("avg_cpm"),
+  avgEstimatedRevenue: real("avg_estimated_revenue"),
+  totalEstimatedRevenue: real("total_estimated_revenue"),
+  sampleSize: integer("sample_size").notNull().default(0),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (t) => [
+  index("ra_user_game_idx").on(t.userId, t.gameTitle),
+  index("ra_user_format_idx").on(t.userId, t.format),
+  index("ra_updated_idx").on(t.updatedAt),
+]);
+
+export const insertRevenueAttributionSchema = createInsertSchema(revenueAttribution).omit({ id: true, updatedAt: true });
+export type InsertRevenueAttribution = z.infer<typeof insertRevenueAttributionSchema>;
+export type RevenueAttribution = typeof revenueAttribution.$inferSelect;
+
+// ── Autonomous Action Execution Log ──────────────────────────────────────────
+// Tracks every time an approved autonomous action is executed (or attempted).
+export const actionExecutionLog = pgTable("action_execution_log", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  actionId: integer("action_id"),       // FK to autonomousActions.id
+  actionType: text("action_type").notNull(),
+  targetId: text("target_id"),          // YouTube video ID or channel ID
+  outcome: text("outcome").notNull(),   // success | failed | skipped
+  details: jsonb("details").$type<Record<string, any>>(),
+  executedAt: timestamp("executed_at").defaultNow().notNull(),
+}, (t) => [
+  index("ael_user_idx").on(t.userId),
+  index("ael_action_idx").on(t.actionId),
+  index("ael_executed_idx").on(t.executedAt),
+]);
+
+export const insertActionExecutionLogSchema = createInsertSchema(actionExecutionLog).omit({ id: true, executedAt: true });
+export type InsertActionExecutionLog = z.infer<typeof insertActionExecutionLogSchema>;
+export type ActionExecutionLog = typeof actionExecutionLog.$inferSelect;
+
+// ── Clip Extraction Jobs ──────────────────────────────────────────────────────
+// Bridges daily-content-engine plans to actual MP4 extraction + encoding.
+export const clipExtractionJobs = pgTable("clip_extraction_jobs", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  sourceVideoId: text("source_video_id").notNull(), // YouTube video ID or local path
+  startTimeSec: real("start_time_sec").notNull(),
+  endTimeSec: real("end_time_sec").notNull(),
+  format: text("format").notNull().default("long_form"), // long_form | shorts
+  targetDurationMin: integer("target_duration_min"),
+  suggestedTitle: text("suggested_title"),
+  suggestedTags: text("suggested_tags").array(),
+  gameTitle: text("game_title"),
+  status: text("status").notNull().default("pending"), // pending | downloading | encoding | complete | failed | cancelled
+  outputPath: text("output_path"),
+  youtubeVideoId: text("youtube_video_id"),  // set after successful upload
+  errorMessage: text("error_message"),
+  retryCount: integer("retry_count").notNull().default(0),
+  autopilotQueueId: integer("autopilot_queue_id"),
+  metadata: jsonb("metadata").$type<Record<string, any>>(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+}, (t) => [
+  index("cej_user_idx").on(t.userId),
+  index("cej_status_idx").on(t.status),
+  index("cej_source_idx").on(t.sourceVideoId),
+  index("cej_created_idx").on(t.createdAt),
+]);
+
+export const insertClipExtractionJobSchema = createInsertSchema(clipExtractionJobs).omit({ id: true, createdAt: true });
+export type InsertClipExtractionJob = z.infer<typeof insertClipExtractionJobSchema>;
+export type ClipExtractionJob = typeof clipExtractionJobs.$inferSelect;
