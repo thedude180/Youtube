@@ -2,6 +2,8 @@
 
 Read this file before touching anything. It is the single source of truth for AI assistants working on this repo.
 
+> **Branch policy:** Always commit and push directly to `main`. Do NOT create feature branches. Both Replit and Claude Code write to `main`.
+
 ---
 
 ## 1. What This Project Is
