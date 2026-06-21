@@ -152,7 +152,7 @@ export function registerCatalogRoutes(app: Express): void {
       const vaultIds = new Set(vaultRows.map(r => r.youtubeId));
       const vaultDownloaded = vaultRows.filter(r => r.status === "downloaded").length;
 
-      const orphanedInVault = vaultRows.filter(r => !catalogIds.has(r.youtubeId)).length;
+      const orphanedInVault = vaultRows.filter(r => r.youtubeId && !catalogIds.has(r.youtubeId)).length;
       const missingFromVault = catalogRows.filter(r => !vaultIds.has(r.youtubeId)).length;
 
       res.json({

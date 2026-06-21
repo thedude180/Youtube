@@ -589,3 +589,40 @@ export async function getVideoRevenueMetrics(
 
   return results;
 }
+
+export async function fetchVideoRetentionCurve(
+  userId: string,
+  youtubeVideoId: string,
+  durationSec: number,
+): Promise<Array<{ timeSec: number; watchRatio: number; relativePerformance: number }>> {
+  try {
+    const ch = await getFirstChannelForUser(userId);
+    if (!ch || !ch.accessToken) return [];
+
+    const rows = await fetchAnalyticsReport(
+      ch.accessToken,
+      ch.channelId,
+      {
+        startDate: "2015-01-01",
+        endDate: new Date().toISOString().split("T")[0],
+        metrics: "audienceWatchRatio,relativeRetentionPerformance",
+        dimensions: "elapsedVideoTimeRatio",
+        filters: `video==${youtubeVideoId}`,
+        maxResults: "1000",
+        sort: "elapsedVideoTimeRatio",
+      },
+      userId,
+    );
+
+    if (!rows || rows.length < 10) return [];
+
+    return rows.map((row: any[]) => ({
+      timeSec: Math.round((Number(row[0]) || 0) * durationSec),
+      watchRatio: Number(row[1]) || 0,
+      relativePerformance: Number(row[2]) || 0,
+    }));
+  } catch (err: any) {
+    logger.warn(`[analytics] fetchVideoRetentionCurve error for ${youtubeVideoId}: ${err?.message?.slice(0, 100)}`);
+    return [];
+  }
+}

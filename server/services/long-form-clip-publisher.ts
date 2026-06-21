@@ -597,12 +597,6 @@ export async function runLongFormClipPublisher(opts?: { bypassBreakerCheck?: boo
           scheduledStartTime: lfScheduledAt ? lfScheduledAt.toISOString() : undefined,
           videoFilePath: encodedPath,
           enableMonetization: true,
-          // Sets the YouTube Studio "Game" field so this video appears on the
-          // game's YouTube page and benefits from game-specific discovery.
-          gameTitle: gameName,
-          // AI content disclosure per YouTube policy 2025:
-          // Set true when the pre-encoder mixed AI-generated music from the creative library.
-          selfDeclaredMadeWithAI: !!(itemMeta?.hasAiMusic),
         });
 
         // ── Eager YouTube ID persist ──────────────────────────────────────

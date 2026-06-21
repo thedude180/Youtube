@@ -75,6 +75,7 @@ import {
   actionExecutionLog,
   revenueAttribution,
   youtubeOutputMetrics,
+  systemSettings,
   type InsertActionExecutionLog, type ActionExecutionLog,
   type InsertRevenueAttribution, type RevenueAttribution,
 } from "@shared/schema";
@@ -367,6 +368,10 @@ export interface IStorage {
   getBestPerformingGame(userId: string, contentType: string): Promise<string | null>;
   getBestPerformingDuration(userId: string): Promise<number>;
   getBestPublishHour(userId: string): Promise<number>;
+
+  // ── System Settings ───────────────────────────────────────────────────────
+  getSystemSetting(key: string): Promise<string | null>;
+  setSystemSetting(key: string, value: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -2144,6 +2149,18 @@ export class DatabaseStorage implements IStorage {
       .limit(1);
     const hour = rows[0]?.publishHour != null ? Number(rows[0].publishHour) : null;
     return (hour != null && Number.isFinite(hour) && hour >= 0 && hour <= 23) ? hour : 15;
+  }
+
+  async getSystemSetting(key: string): Promise<string | null> {
+    const [row] = await db.select().from(systemSettings).where(eq(systemSettings.key, key)).limit(1);
+    return row?.value ?? null;
+  }
+
+  async setSystemSetting(key: string, value: string): Promise<void> {
+    await db.insert(systemSettings).values({ key, value }).onConflictDoUpdate({
+      target: systemSettings.key,
+      set: { value, updatedAt: new Date() },
+    });
   }
 }
 

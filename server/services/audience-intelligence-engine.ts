@@ -184,3 +184,25 @@ Analyze audience behavior patterns. Output JSON:
     logger.error("Audience intelligence AI call failed", { err: String(err) });
   }
 }
+
+export async function calibrateAudienceSoulModel(
+  userId: string,
+  youtubeVideoId: string,
+): Promise<void> {
+  try {
+    const { db: _db }            = await import("../db");
+    const { masterKnowledgeBank } = await import("@shared/schema");
+    await _db.insert(masterKnowledgeBank).values({
+      userId,
+      category:          "audience_calibration",
+      principle:         `[Calibration pending] Video ${youtubeVideoId} just published — check analytics at 48 h to compare predicted vs actual audience behaviour and update soul-model confidence.`,
+      evidence:          `youtubeVideoId=${youtubeVideoId}, queuedAt=${new Date().toISOString()}`,
+      applicableEngines: ["audience-intelligence", "content-maximizer", "learning-brain"],
+      confidenceScore:   30, // low until real analytics arrive
+      isActive:          true,
+      createdAt:         new Date(),
+    } as any).catch(() => {});
+  } catch {
+    // non-fatal — never block the publisher
+  }
+}

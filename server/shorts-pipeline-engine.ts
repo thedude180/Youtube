@@ -1038,3 +1038,266 @@ export async function trackClipPerformance(
     return { tracked: false, accuracy: null };
   }
 }
+
+function parseTranscriptSec(line: string): number | null {
+  const m = line.match(/^\[(\d+):(\d{2})\]/);
+  if (!m) return null;
+  return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+}
+
+const VIRAL_CHUNK_SEC = 1800;      // 30 minutes per analysis chunk
+const STREAM_SKIP_SEC = 30;        // tiny buffer for stream startup only — creator starts in-match
+const VIRAL_CHUNK_BUDGET  = 3000;  // tokens per chunk call
+const VIRAL_MIN_DUR_SEC   = 25;    // shortest acceptable Short
+const VIRAL_MAX_DUR_SEC   = 58;    // longest acceptable Short
+
+function chunkTranscriptByTime(transcript: string): Array<{ startSec: number; endSec: number; text: string }> {
+  const lines = transcript.split("\n").filter(l => l.trim());
+  const chunks: Array<{ startSec: number; endSec: number; lines: string[] }> = [];
+  let currentStart = 0;
+  let currentLines: string[] = [];
+  let lastSec = 0;
+
+  for (const line of lines) {
+    const ts = parseTranscriptSec(line);
+    if (ts !== null) lastSec = ts;
+
+    const chunkIdx = Math.floor(lastSec / VIRAL_CHUNK_SEC);
+    const chunkStart = chunkIdx * VIRAL_CHUNK_SEC;
+
+    if (chunkStart > currentStart && currentLines.length > 0) {
+      chunks.push({ startSec: currentStart, endSec: chunkStart, lines: currentLines });
+      currentStart = chunkStart;
+      currentLines = [];
+    }
+    currentLines.push(line);
+  }
+
+  if (currentLines.length > 0) {
+    chunks.push({ startSec: currentStart, endSec: lastSec + 120, lines: currentLines });
+  }
+
+  return chunks.map(c => ({ startSec: c.startSec, endSec: c.endSec, text: c.lines.join("\n") }));
+}
+
+export interface ViralMoment {
+  startSec: number;
+  endSec: number;
+  viralScore: number;
+  title: string;
+  reason: string;
+}
+
+/**
+ * Finds peak viewer-retention moments in a video by reading the YouTube
+ * Analytics audience-retention curve.
+ *
+ * This is the primary detection method for NO-COMMENTARY gaming streams —
+ * it uses real viewer behaviour data, not audio/transcript, so it works
+ * regardless of whether the creator speaks on stream.
+ *
+ * Algorithm:
+ *  1. Fetch retention curve (up to 1 000 data points, one per ~0.1 % of video)
+ *  2. Apply 7-point rolling average to smooth noise
+ *  3. Compute "above-trend" score: how much each point exceeds the expected
+ *     linear-decay baseline (captures rewatch bumps and slow-drop moments)
+ *  4. Find local maxima in the score signal
+ *  5. Deduplicate (no two clips within 60 s), return top maxMoments sorted by score
+ *
+ * Returns [] when the video has no analytics data yet (too new, zero views).
+ * In that case callers fall back to transcript analysis or even-spacing.
+ */
+export async function extractViralMomentsFromRetentionCurve(
+  userId: string,
+  youtubeId: string,
+  durationSec: number,
+  maxMoments: number = 15,
+): Promise<ViralMoment[]> {
+  try {
+    const { fetchVideoRetentionCurve } = await import("./services/youtube-analytics");
+    const curve = await fetchVideoRetentionCurve(userId, youtubeId, durationSec);
+    if (curve.length < 15) return [];
+
+    // ── 1. 7-point rolling average ──────────────────────────────────────────
+    const W = 3; // half-window
+    const smoothed = curve.map((p, i) => {
+      const slice = curve.slice(Math.max(0, i - W), i + W + 1);
+      const avgWatch = slice.reduce((s, x) => s + x.watchRatio, 0) / slice.length;
+      const avgRel   = slice.reduce((s, x) => s + x.relativePerformance, 0) / slice.length;
+      return { timeSec: p.timeSec, watchRatio: avgWatch, relativePerformance: avgRel };
+    });
+
+    // ── 2. Linear-decay baseline & above-trend score ────────────────────────
+    const first = smoothed[0]?.watchRatio || 1;
+    const last  = smoothed[smoothed.length - 1]?.watchRatio || 0;
+    const scored = smoothed.map(p => {
+      const ratio   = p.timeSec / Math.max(durationSec, 1);
+      const baseline = first + (last - first) * ratio;  // expected linear decay
+      const aboveTrend = p.watchRatio - baseline;        // positive = viewers staying more than expected
+      // Combined score: above-trend weighted 60 %, relativePerformance 40 %
+      const score = aboveTrend * 0.6 + Math.max(0, p.relativePerformance) * 0.4;
+      return { timeSec: p.timeSec, watchRatio: p.watchRatio, score };
+    });
+
+    // ── 3. Find local maxima (peak must beat 7 neighbours on each side) ─────
+    const NEIGH = 7;
+    const peaks: Array<{ timeSec: number; score: number; watchRatio: number }> = [];
+    for (let i = NEIGH; i < scored.length - NEIGH; i++) {
+      const p = scored[i];
+      if (p.timeSec < STREAM_SKIP_SEC) continue;
+      const window = scored.slice(i - NEIGH, i + NEIGH + 1);
+      const isMax  = window.every((n, j) => j === NEIGH || n.score <= p.score);
+      if (isMax && p.score > 0) peaks.push({ timeSec: p.timeSec, score: p.score, watchRatio: p.watchRatio });
+    }
+
+    // ── 4. Sort, deduplicate, cap ───────────────────────────────────────────
+    peaks.sort((a, b) => b.score - a.score);
+    const deduped: typeof peaks = [];
+    for (const p of peaks) {
+      if (!deduped.some(k => Math.abs(k.timeSec - p.timeSec) < 60)) deduped.push(p);
+      if (deduped.length >= maxMoments) break;
+    }
+
+    // ── 5. Convert to ViralMoment — center ~40 s clip around the peak ───────
+    const TARGET_DUR = 40;
+    const moments: ViralMoment[] = deduped.map(p => {
+      const startSec = Math.max(STREAM_SKIP_SEC, Math.round(p.timeSec - TARGET_DUR * 0.4));
+      const endSec   = Math.min(durationSec - 5,  startSec + TARGET_DUR);
+      const minRetain = Math.round(p.watchRatio * 100);
+      const viralScore = Math.min(97, Math.max(50, 50 + Math.round(p.score * 200)));
+      return {
+        startSec,
+        endSec,
+        viralScore,
+        title: `Top Moment @${Math.floor(p.timeSec / 60)}:${String(Math.round(p.timeSec % 60)).padStart(2, "0")}`,
+        reason: `Viewer retention peak — ${minRetain}% still watching (above trend)`,
+      };
+    });
+
+    logger.info(`[RetentionCurve] ${youtubeId}: ${curve.length} pts → ${peaks.length} peaks → ${moments.length} clips`);
+    return moments;
+  } catch (err: any) {
+    if (err?.message?.includes("AI queue full") || err?.message?.includes("request dropped")) throw err;
+    logger.debug(`[RetentionCurve] ${youtubeId}: unavailable (${err?.message?.slice(0, 60)})`);
+    return [];
+  }
+}
+
+/**
+ * Analyzes the ENTIRE transcript of a YouTube video for viral clip moments.
+ *
+ * Breaks the full transcript into 30-minute chunks and runs AI on each one
+ * so no part of the stream is missed.  Returns moments sorted by viral score,
+ * deduplicated (no two clips within 30 s of each other), capped at maxMoments.
+ *
+ * Returns [] when no transcript is available — callers should fall back to
+ * evenly-spaced clips in that case.
+ */
+export async function extractViralMomentsFromTranscript(
+  youtubeId: string,
+  _durationSec: number,
+  maxMoments: number = 15,
+  gameName?: string,
+): Promise<ViralMoment[]> {
+  let transcript: string | null = null;
+  try {
+    transcript = await fetchYouTubeTranscript(youtubeId);
+  } catch { /* video has no captions */ }
+
+  if (!transcript || transcript.trim().length < 80) return [];
+
+  const chunks = chunkTranscriptByTime(transcript);
+  const allMoments: ViralMoment[] = [];
+
+  for (const chunk of chunks) {
+    if (chunk.endSec <= STREAM_SKIP_SEC) continue; // skip pure setup window
+
+    if (!tokenBudget.checkBudget("shorts-pipeline", VIRAL_CHUNK_BUDGET)) {
+      logger.debug("[ViralMoments] Budget exhausted — stopping chunk analysis early");
+      break;
+    }
+    tokenBudget.consumeBudget("shorts-pipeline", VIRAL_CHUNK_BUDGET);
+
+    const startMin = Math.round(chunk.startSec / 60);
+    const endMin   = Math.round(chunk.endSec   / 60);
+
+    const activeGame = gameName || "the game";
+    const chunkPrompt = `You are the world's best viral gaming clip detector operating at ASI level. You deeply understand ${activeGame} — its gameplay patterns, what creates stop-scroll moments, and what no-commentary PS5 gaming audiences respond to.
+
+Scan this ${endMin - startMin}-minute segment (video minutes ${startMin}–${endMin}) and identify EVERY moment with genuine viral potential as a YouTube Short.
+
+TRANSCRIPT:
+${chunk.text.slice(0, 5500)}
+
+${activeGame} VIRAL PATTERN LIBRARY — proven stop-scroll moment categories:
+• ELIMINATION INTENSITY: Multi-kill sequence, clutch 1v3+ win, no-scope/trick shot, knife/melee kill, revenge chain, perfect ability/grenade timing
+• VEHICLE/POWER PLAY: Any vehicle kill streak, power ability activation, environmental destruction chain, escape from impossible odds
+• OBJECTIVE CLUTCH: Final-second capture, bomb plant/defuse under fire, overtime moment, comeback from losing position
+• CHAOS & SURPRISE: Unexpected team save, massive explosion/destruction, gadget/ability trap payoff, enemy collapse, physics moment
+• SPECTACLE: Insane long-range kill, simultaneous multi-kill, 100-0 health reversal, impossible angle, "wait for it" payoff
+
+INTENSITY SCORING GUIDE (score 1–10):
+• 9–10: Multi-kill + visible reaction, clutch comeback, insane trick shot — will STOP THE SCROLL
+• 7–8: Single clean kill with great setup, objective clutch, vehicle kill — STRONG content
+• 5–6: Normal kill sequence with some action — ACCEPTABLE if unique to ${activeGame}
+• 1–4: Static gameplay, menu, lobby, spectating, idle — DO NOT INCLUDE
+
+MANDATORY RULES:
+• The stream starts ALREADY IN A MATCH — do NOT skip the beginning. First seconds can be the hottest content.
+• SKIP: player standing still, killcam >5s, spawn screen, menus, lobby, "brb", long silence with no action words
+• PICK: action callouts, kill reactions, hype/frustration/surprise, enemy descriptions, clutch moment narration
+• Each clip: ${VIRAL_MIN_DUR_SEC}–${VIRAL_MAX_DUR_SEC} seconds. Hook must land in first 2 seconds.
+• startSec = exact second from VIDEO START (not segment start)
+• viralScore = your honest 1–100 estimate of stop-scroll probability for a ${activeGame} gaming audience
+• title = CTR-optimized (outcome-first, action verb, specific result: "Wiped 4 Players in 8 Seconds" not "Amazing Gaming Moment")
+• If no moments score ≥ 60 in this segment, return {"moments":[]}
+
+Return JSON only:
+{"moments":[{"startSec":120,"endSec":158,"viralScore":88,"title":"Squad Wiped in 4 Seconds | ${activeGame}","reason":"Instant 4-kill sequence opening + chaos continues — zero dead frames"}]}`;
+
+    try {
+      const resp = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: chunkPrompt }],
+        response_format: { type: "json_object" },
+        max_completion_tokens: 1800,
+      });
+
+      const raw = resp.choices[0]?.message?.content;
+      if (!raw) continue;
+
+      const parsed = JSON.parse(raw);
+      const moments: any[] = parsed.moments || [];
+
+      for (const m of moments) {
+        const rawStart = Number(m.startSec) || 0;
+        const rawEnd   = Number(m.endSec)   || rawStart + 38;
+        const startSec = Math.max(STREAM_SKIP_SEC, rawStart);
+        const endSec   = Math.min(startSec + VIRAL_MAX_DUR_SEC, Math.max(startSec + VIRAL_MIN_DUR_SEC, rawEnd));
+        if (endSec <= startSec) continue;
+        allMoments.push({
+          startSec,
+          endSec,
+          viralScore: Math.min(100, Math.max(0, Number(m.viralScore) || 50)),
+          title: String(m.title || "Gaming Moment").slice(0, 100),
+          reason: String(m.reason || "").slice(0, 200),
+        });
+      }
+    } catch (err: any) {
+      if (err?.message?.includes("AI queue full") || err?.message?.includes("request dropped")) throw err;
+      logger.warn(`[ViralMoments] Chunk ${startMin}–${endMin}min failed: ${err.message}`);
+    }
+
+    await new Promise(r => setTimeout(r, 400));
+  }
+
+  const sorted = allMoments.sort((a: ViralMoment, b: ViralMoment) => b.viralScore - a.viralScore);
+  const deduped: ViralMoment[] = [];
+  for (const m of sorted) {
+    if (!deduped.some((k: ViralMoment) => Math.abs(k.startSec - m.startSec) < 30)) deduped.push(m);
+    if (deduped.length >= maxMoments) break;
+  }
+
+  logger.info(`[ViralMoments] ${youtubeId}: ${allMoments.length} raw → ${deduped.length} after dedup (${chunks.length} chunks scanned)`);
+  return deduped;
+}

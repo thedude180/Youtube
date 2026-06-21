@@ -10119,3 +10119,977 @@ export const clipExtractionJobs = pgTable("clip_extraction_jobs", {
 export const insertClipExtractionJobSchema = createInsertSchema(clipExtractionJobs).omit({ id: true, createdAt: true });
 export type InsertClipExtractionJob = z.infer<typeof insertClipExtractionJobSchema>;
 export type ClipExtractionJob = typeof clipExtractionJobs.$inferSelect;
+
+export const trackedVideos = pgTable("tracked_videos", {
+  id:               serial("id").primaryKey(),
+  userId:           text("user_id").notNull(),
+  youtubeVideoId:   text("youtube_video_id").notNull(),
+  contentType:      text("content_type").notNull().default("short"), // "short" | "vod"
+  gameName:         text("game_name"),
+  title:            text("title"),
+  publishedAt:      timestamp("published_at"),
+  addedAt:          timestamp("added_at").defaultNow(),
+  lastSnapshotAt:   timestamp("last_snapshot_at"),
+  isActive:         boolean("is_active").default(true),
+  sourceQueueItemId:integer("source_queue_item_id"),
+}, (t) => [
+  index("tv_user_idx").on(t.userId),
+  uniqueIndex("tv_video_unique").on(t.userId, t.youtubeVideoId),
+  index("tv_active_idx").on(t.isActive),
+]);
+export type TrackedVideo = typeof trackedVideos.$inferSelect;
+
+export const videoMomentumSnapshots = pgTable("video_momentum_snapshots", {
+  id:                serial("id").primaryKey(),
+  userId:            text("user_id").notNull(),
+  youtubeVideoId:    text("youtube_video_id").notNull(),
+  contentType:       text("content_type").notNull().default("short"),
+  gameName:          text("game_name"),
+  title:             text("title"),
+  viewCount:         integer("view_count").notNull().default(0),
+  likeCount:         integer("like_count").default(0),
+  commentCount:      integer("comment_count").default(0),
+  velocityPerHour:   real("velocity_per_hour").default(0),   // views/hr since last snapshot
+  momentumScore:     real("momentum_score").default(0),       // composite: velocity + accel + vs avg
+  isGainingSteam:    boolean("is_gaining_steam").default(false),
+  hoursSincePublish: real("hours_since_publish"),
+  publishedAt:       timestamp("published_at"),
+  snapshotAt:        timestamp("snapshot_at").defaultNow(),
+}, (t) => [
+  index("vms_user_idx").on(t.userId),
+  index("vms_video_idx").on(t.youtubeVideoId),
+  index("vms_steam_idx").on(t.isGainingSteam),
+  index("vms_score_idx").on(t.momentumScore),
+  index("vms_snap_idx").on(t.snapshotAt),
+]);
+export type VideoMomentumSnapshot = typeof videoMomentumSnapshots.$inferSelect;
+
+// ── Learning Events ───────────────────────────────────────────────────────────
+// General event bus for the learning brain — every subsystem emits events here.
+export const learningEvents = pgTable("learning_events", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  eventType: text("event_type").notNull(),
+  sourceAgent: text("source_agent"),
+  data: jsonb("data").$type<Record<string, any>>().default({}),
+  outcome: text("outcome"),
+  performanceDelta: real("performance_delta"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("le_user_idx").on(t.userId),
+  index("le_type_idx").on(t.eventType),
+  index("le_created_idx").on(t.createdAt),
+]);
+export type LearningEvent = typeof learningEvents.$inferSelect;
+
+// ── Livestream Learning Events ────────────────────────────────────────────────
+// Records what happened during a livestream so the copilot can improve.
+export const livestreamLearningEvents = pgTable("livestream_learning_events", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  streamId: integer("stream_id"),
+  eventType: text("event_type").notNull(),
+  messageId: integer("message_id"),
+  outcome: text("outcome"),
+  chatStyle: text("chat_style"),
+  responsePattern: text("response_pattern"),
+  viewerRetained: boolean("viewer_retained"),
+  data: jsonb("data").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("lle_user_idx").on(t.userId),
+  index("lle_stream_idx").on(t.streamId),
+  index("lle_type_idx").on(t.eventType),
+]);
+export type LivestreamLearningEvent = typeof livestreamLearningEvents.$inferSelect;
+
+// ── Back Catalog Videos ───────────────────────────────────────────────────────
+// Stores every video/VOD imported from the channel's YouTube catalog.
+// One row per YouTube video ID per user. Upserted on each sync.
+export const backCatalogVideos = pgTable("back_catalog_videos", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  channelId: integer("channel_id").references(() => channels.id),
+  localVideoId: integer("local_video_id").references(() => videos.id),
+  youtubeVideoId: text("youtube_video_id").notNull(),
+  title: text("title").notNull().default(""),
+  description: text("description"),
+  tags: text("tags").array(),
+  thumbnailUrl: text("thumbnail_url"),
+  durationSec: integer("duration_sec").default(0),
+  publishedAt: timestamp("published_at"),
+  privacyStatus: text("privacy_status"),
+  viewCount: bigint("view_count", { mode: "number" }).default(0),
+  likeCount: bigint("like_count", { mode: "number" }).default(0),
+  commentCount: bigint("comment_count", { mode: "number" }).default(0),
+  categoryId: text("category_id"),
+  gameName: text("game_name"),
+  isVod: boolean("is_vod").default(false),
+  isShort: boolean("is_short").default(false),
+  isLongForm: boolean("is_long_form").default(false),
+  isOver60Min: boolean("is_over_60_min").default(false),
+  minedForShorts: boolean("mined_for_shorts").default(false),
+  minedForLongForm: boolean("mined_for_long_form").default(false),
+  shortsQueuedCount: integer("shorts_queued_count").default(0),
+  longFormQueuedCount: integer("long_form_queued_count").default(0),
+  metadataUpdatesQueued: integer("metadata_updates_queued").default(0),
+  metadataOpportunityScore: real("metadata_opportunity_score"),
+  thumbnailOpportunityScore: real("thumbnail_opportunity_score"),
+  shortsOpportunityScore: real("shorts_opportunity_score"),
+  longFormOpportunityScore: real("long_form_opportunity_score"),
+  monetizationOpportunityScore: real("monetization_opportunity_score"),
+  totalRevivalScore: real("total_revival_score"),
+  monetizationStatus: text("monetization_status"),
+  lastOptimizedAt: timestamp("last_optimized_at"),
+  lastSyncAt: timestamp("last_sync_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => [
+  index("bcv_user_idx").on(t.userId),
+  index("bcv_yt_id_idx").on(t.youtubeVideoId),
+  index("bcv_user_yt_idx").on(t.userId, t.youtubeVideoId),
+  index("bcv_revival_score_idx").on(t.totalRevivalScore),
+  index("bcv_channel_idx").on(t.channelId),
+]);
+
+export const insertBackCatalogVideoSchema = createInsertSchema(backCatalogVideos).omit({ id: true, createdAt: true, updatedAt: true });
+export type BackCatalogVideo = typeof backCatalogVideos.$inferSelect;
+export type InsertBackCatalogVideo = z.infer<typeof insertBackCatalogVideoSchema>;
+
+// ── Back Catalog Derivatives ──────────────────────────────────────────────────
+// Tracks every piece of derivative content generated from back catalog videos
+// plus before/after performance metrics so the learning engine can measure ROI.
+export const backCatalogDerivatives = pgTable("back_catalog_derivatives", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  backCatalogVideoId: integer("back_catalog_video_id").references(() => backCatalogVideos.id),
+  sourceYoutubeId: text("source_youtube_id"),
+  // short_clip | long_form_clip | metadata_refresh | thumbnail_refresh | playlist_linking
+  derivativeType: text("derivative_type").notNull(),
+  // metadata_refresh | short_clip | long_form_clip | thumbnail_refresh | playlist_linking
+  transformationType: text("transformation_type").notNull(),
+  derivativeYoutubeId: text("derivative_youtube_id"),
+  queueItemId: integer("queue_item_id"),
+  beforeViews: integer("before_views"),
+  afterViews24h: integer("after_views_24h"),
+  afterViews7d: integer("after_views_7d"),
+  afterWatchTime7d: real("after_watch_time_7d"),
+  trafficFromShorts: integer("traffic_from_shorts"),
+  subscribersGained: integer("subscribers_gained"),
+  revenueEligibleEstimate: real("revenue_eligible_estimate"),
+  performanceScore: real("performance_score"),
+  measuredAt: timestamp("measured_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("bcd_user_idx").on(t.userId),
+  index("bcd_source_idx").on(t.backCatalogVideoId),
+  index("bcd_type_idx").on(t.derivativeType),
+  index("bcd_yt_id_idx").on(t.derivativeYoutubeId),
+]);
+
+export const insertBackCatalogDerivativeSchema = createInsertSchema(backCatalogDerivatives).omit({ id: true, createdAt: true });
+export type BackCatalogDerivative = typeof backCatalogDerivatives.$inferSelect;
+export type InsertBackCatalogDerivative = z.infer<typeof insertBackCatalogDerivativeSchema>;
+
+// ── ETGaming247 Upload Packages ───────────────────────────────────────────────
+export const etgaming247Packages = pgTable("etgaming247_packages", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  input: jsonb("input").$type<Record<string, any>>().notNull(),
+  output: jsonb("output").$type<Record<string, any>>().notNull(),
+  analytics: jsonb("analytics").$type<Record<string, any>>(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("etg247_user_idx").on(t.userId),
+]);
+
+export const insertEtgaming247PackageSchema = createInsertSchema(etgaming247Packages).omit({ id: true, createdAt: true });
+export type Etgaming247Package = typeof etgaming247Packages.$inferSelect;
+export type InsertEtgaming247Package = z.infer<typeof insertEtgaming247PackageSchema>;
+
+// ── Niche Video Research ───────────────────────────────────────────────────────
+// Stores real YouTube video samples scraped from BF6/gaming niche searches.
+// Used by the niche-video-researcher service to find what's working in the niche.
+export const nicheVideoSamples = pgTable("niche_video_samples", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  videoId: text("video_id").notNull(),
+  title: text("title").notNull(),
+  channelName: text("channel_name"),
+  viewCount: integer("view_count").default(0),
+  likeCount: integer("like_count"),
+  durationSec: integer("duration_sec"),
+  uploadDate: text("upload_date"),
+  url: text("url").notNull(),
+  searchQuery: text("search_query"),
+  isShort: boolean("is_short").default(false),
+  metadata: jsonb("metadata").$type<Record<string, any>>(),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("nvs_user_idx").on(t.userId),
+  index("nvs_video_id_idx").on(t.videoId),
+  index("nvs_created_idx").on(t.createdAt),
+]);
+
+export const nicheInsights = pgTable("niche_insights", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  insightType: text("insight_type").notNull(),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  priority: text("priority").default("medium"),
+  sampleCount: integer("sample_count").default(0),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("ni_user_idx").on(t.userId),
+  index("ni_created_idx").on(t.createdAt),
+]);
+
+// ── Pipeline Traces ───────────────────────────────────────────────────────────
+// End-to-end trace of every published piece of content from queue entry through
+// YouTube API confirmation. The tracer agent verifies each published video is
+// actually live, detects stuck items, and flags anomalies automatically.
+export const pipelineTraces = pgTable("pipeline_traces", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  queueItemId: integer("queue_item_id"),
+  youtubeVideoId: text("youtube_video_id"),
+  contentType: text("content_type"),
+  gameName: text("game_name"),
+  // Stage values: uploaded | verified_live | verified_missing |
+  //               stuck_scheduled | stuck_processing | failed | daily_summary
+  stage: text("stage").notNull(),
+  // Status values: ok | warning | error
+  status: text("status").notNull(),
+  // Milliseconds from scheduledAt → this event (pipeline latency)
+  durationMs: integer("duration_ms"),
+  detail: jsonb("detail").$type<Record<string, any>>(),
+  resolvedAt: timestamp("resolved_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => [
+  index("pt_user_idx").on(t.userId),
+  index("pt_queue_item_idx").on(t.queueItemId),
+  index("pt_youtube_id_idx").on(t.youtubeVideoId),
+  index("pt_stage_idx").on(t.stage),
+  index("pt_created_idx").on(t.createdAt),
+]);
+
+export const insertPipelineTraceSchema = createInsertSchema(pipelineTraces).omit({ id: true, createdAt: true });
+export type PipelineTrace = typeof pipelineTraces.$inferSelect;
+export type InsertPipelineTrace = z.infer<typeof insertPipelineTraceSchema>;
+
+// ─── yt_dlp_backoff ──────────────────────────────────────────────────────────
+// Persists yt-dlp download failure backoff across reboots.
+// Keyed by youtube_id; the in-memory yt-dlp-backoff.ts module reads/writes here.
+export const ytDlpBackoff = pgTable("yt_dlp_backoff", {
+  youtubeId:       text("youtube_id").primaryKey(),
+  failureType:     text("failure_type").notNull(),
+  consecutiveFails:integer("consecutive_fails").notNull().default(1),
+  retryAfter:      timestamp("retry_after", { withTimezone: true }).notNull(),
+  lastFailureAt:   timestamp("last_failure_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:       timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("idx_yt_dlp_backoff_retry").on(t.retryAfter),
+]);
+
+// ─── system_settings ─────────────────────────────────────────────────────────
+// Generic key-value store for persistent system flags (e.g. live-gate cooldowns).
+export const systemSettings = pgTable("system_settings", {
+  key:       text("key").primaryKey(),
+  value:     text("value").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ── Playlist Funnels ──────────────────────────────────────────────────────────
+// Tracks per-game funnel playlists that sequence Shorts → long-form to convert
+// casual viewers into dedicated ones. One row per game per user.
+export const playlistFunnels = pgTable("playlist_funnels", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  channelId: integer("channel_id").references(() => channels.id),
+  gameName: text("game_name").notNull(),
+  youtubePlaylistId: text("youtube_playlist_id").notNull(),
+  funnelType: text("funnel_type").notNull().default("mixed"),
+  videoCount: integer("video_count").default(0),
+  shortsCount: integer("shorts_count").default(0),
+  longFormCount: integer("long_form_count").default(0),
+  addedVideoIds: jsonb("added_video_ids").$type<string[]>().default(sql`'[]'::jsonb`),
+  lastVideoAddedAt: timestamp("last_video_added_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => [
+  index("pf_user_idx").on(t.userId),
+  index("pf_game_idx").on(t.gameName),
+  index("pf_channel_idx").on(t.channelId),
+  uniqueIndex("pf_user_game_idx").on(t.userId, t.gameName),
+]);
+export type PlaylistFunnel = typeof playlistFunnels.$inferSelect;
+
+// ── Watch-Next Links ──────────────────────────────────────────────────────────
+// Tracks which Shorts have had a "watch next" long-form link injected into their
+// description. Used by the watch-next linker to avoid duplicate updates.
+export const watchNextLinks = pgTable("watch_next_links", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  channelId: integer("channel_id").references(() => channels.id),
+  shortYoutubeId: text("short_youtube_id").notNull(),
+  longFormYoutubeId: text("long_form_youtube_id"),
+  gameName: text("game_name"),
+  updateSuccess: boolean("update_success").default(false),
+  failReason: text("fail_reason"),
+  linkedAt: timestamp("linked_at").defaultNow(),
+}, (t) => [
+  index("wnl_user_idx").on(t.userId),
+  index("wnl_short_idx").on(t.shortYoutubeId),
+  uniqueIndex("wnl_short_user_idx").on(t.userId, t.shortYoutubeId),
+]);
+export type WatchNextLink = typeof watchNextLinks.$inferSelect;
+
+// ── Short Source Links ────────────────────────────────────────────────────────
+// Tracks every published Short that has been matched back to its source VOD
+// and had the "Full video → ..." link injected into its description.
+// Used to avoid re-processing Shorts and to audit coverage.
+export const shortSourceLinks = pgTable("short_source_links", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  channelId: integer("channel_id").references(() => channels.id),
+  shortYoutubeId: text("short_youtube_id").notNull(),
+  sourceYoutubeId: text("source_youtube_id"),
+  matchType: text("match_type"), // 'queue_exact' | 'game_match' | 'already_had_link' | 'no_source_found'
+  updateSuccess: boolean("update_success").default(false),
+  failReason: text("fail_reason"),
+  linkedAt: timestamp("linked_at").defaultNow(),
+}, (t) => [
+  index("ssl_user_idx").on(t.userId),
+  index("ssl_short_idx").on(t.shortYoutubeId),
+  uniqueIndex("ssl_short_user_idx").on(t.userId, t.shortYoutubeId),
+]);
+export type ShortSourceLink = typeof shortSourceLinks.$inferSelect;
+export const insertShortSourceLinkSchema = createInsertSchema(shortSourceLinks).omit({ id: true, linkedAt: true });
+
+// ── Self-Healing Actions ──────────────────────────────────────────────────────
+// Records every auto-repair action taken by the self-healing engine.
+// Level 1/2 actions are status="applied"; Level 3 actions are status="staged".
+export const selfHealingActions = pgTable("self_healing_actions", {
+  id:          serial("id").primaryKey(),
+  createdAt:   timestamp("created_at").defaultNow().notNull(),
+  severity:    text("severity").notNull(),   // "level1" | "level2" | "level3"
+  errorCode:   text("error_code").notNull(),
+  module:      text("module").notNull(),
+  actionTaken: text("action_taken").notNull(),
+  confidence:  real("confidence"),
+  riskLevel:   text("risk_level").notNull(),
+  status:      text("status").notNull(),     // "applied" | "staged" | "failed" | "skipped"
+  result:      text("result"),
+  notes:       text("notes"),
+}, (t) => [
+  index("sha_created_idx").on(t.createdAt),
+  index("sha_module_idx").on(t.module),
+  index("sha_error_code_idx").on(t.errorCode),
+  index("sha_status_idx").on(t.status),
+]);
+export type SelfHealingAction = typeof selfHealingActions.$inferSelect;
+export const insertSelfHealingActionSchema = createInsertSchema(selfHealingActions).omit({ id: true, createdAt: true });
+export type InsertSelfHealingAction = typeof insertSelfHealingActionSchema._type;
+
+// ── Decision Journal ──────────────────────────────────────────────────────────
+// Logs every important automated decision for audit + learning.
+export const decisionJournal = pgTable("decision_journal", {
+  id:               serial("id").primaryKey(),
+  timestamp:        timestamp("timestamp").defaultNow().notNull(),
+  module:           text("module").notNull(),
+  userId:           text("user_id"),
+  channelId:        text("channel_id"),
+  jobId:            text("job_id"),
+  decision:         text("decision").notNull(),
+  reason:           text("reason").notNull(),
+  inputs:           jsonb("inputs").$type<Record<string, unknown>>().default({}),
+  confidence:       real("confidence"),
+  expectedOutcome:  text("expected_outcome"),
+  actionTaken:      text("action_taken"),
+  result:           text("result"),
+  rollbackAvailable: boolean("rollback_available").default(false),
+}, (t) => [
+  index("dj_timestamp_idx").on(t.timestamp),
+  index("dj_module_idx").on(t.module),
+  index("dj_user_idx").on(t.userId),
+  index("dj_decision_idx").on(t.decision),
+]);
+export type DecisionJournalEntry = typeof decisionJournal.$inferSelect;
+export const insertDecisionJournalSchema = createInsertSchema(decisionJournal).omit({ id: true, timestamp: true });
+export type InsertDecisionJournal = typeof insertDecisionJournalSchema._type;
+
+// ── Channel Performance Memory ────────────────────────────────────────────────
+// Persists per-user/channel learned performance patterns.
+export const channelPerformanceMemory = pgTable("channel_performance_memory", {
+  id:        serial("id").primaryKey(),
+  userId:    text("user_id").notNull().unique(),
+  data:      jsonb("data").$type<Record<string, unknown>>().default({}),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (t) => [
+  index("cpm_user_idx").on(t.userId),
+]);
+export type ChannelPerformanceMemory = typeof channelPerformanceMemory.$inferSelect;
+
+// ── Growth Experiments ────────────────────────────────────────────────────────
+// Controlled A/B experiments for title, thumbnail, description, upload-time changes.
+export const growthExperiments = pgTable("growth_experiments", {
+  id:              text("id").primaryKey(),
+  userId:          text("user_id").notNull(),
+  channelId:       text("channel_id"),
+  hypothesis:      text("hypothesis").notNull(),
+  targetMetric:    text("target_metric").notNull(),  // "ctr" | "retention" | "views" | "watch_time"
+  targetVideoId:   text("target_video_id"),
+  changeType:      text("change_type").notNull(),    // "title" | "thumbnail" | "description" | "tags" | "upload_time"
+  changeOriginal:  text("change_original").notNull(),
+  changeProposed:  text("change_proposed").notNull(),
+  startDate:       timestamp("start_date").notNull(),
+  endDate:         timestamp("end_date"),
+  confidenceScore: real("confidence_score").default(0),
+  result:          text("result"),    // "win" | "loss" | "neutral" | "inconclusive"
+  decision:        text("decision"),  // "keep" | "rollback" | "extend"
+  rollbackPlan:    text("rollback_plan").default(""),
+  status:          text("status").notNull().default("staged"),  // "running" | "completed" | "rolled_back" | "staged"
+  createdAt:       timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("ge_user_idx").on(t.userId),
+  index("ge_status_idx").on(t.status),
+  index("ge_created_idx").on(t.createdAt),
+]);
+export type GrowthExperiment = typeof growthExperiments.$inferSelect;
+export const insertGrowthExperimentSchema = createInsertSchema(growthExperiments).omit({ createdAt: true });
+export type InsertGrowthExperiment = typeof insertGrowthExperimentSchema._type;
+
+// ── Channel Success DNA ───────────────────────────────────────────────────────
+// Stores structured winning patterns extracted from real YouTube performance data.
+// confidenceScore compounds over time: each confirming video increases it (Bayesian).
+// patternType: "game_focus" | "duration_bucket" | "posting_window" |
+//              "content_type" | "thumbnail_style" | "hook_retention"
+export const channelSuccessDna = pgTable("channel_success_dna", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  patternType: text("pattern_type").notNull(),
+  pattern: text("pattern").notNull(),
+  confidenceScore: real("confidence_score").notNull().default(0.5),
+  sampleCount: integer("sample_count").notNull().default(0),
+  winCount: integer("win_count").notNull().default(0),
+  avgPerformanceScore: real("avg_performance_score").notNull().default(0),
+  lastUpdatedAt: timestamp("last_updated_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  uniqueIndex("csd_user_pattern_uniq").on(t.userId, t.patternType, t.pattern),
+  index("csd_user_type_idx").on(t.userId, t.patternType),
+  index("csd_confidence_idx").on(t.confidenceScore),
+]);
+export type ChannelSuccessDna = typeof channelSuccessDna.$inferSelect;
+
+// ── Error Events ──────────────────────────────────────────────────────────────
+// Every error occurrence captured from any service, classified + fingerprinted.
+// Retained for 365 days via log-retention sweep. The raw event stream that feeds
+// the knowledge base.
+export const errorEvents = pgTable("error_events", {
+  id:             serial("id").primaryKey(),
+  fingerprint:    text("fingerprint").notNull(),              // "{module}:{errorCode}"
+  occurredAt:     timestamp("occurred_at").defaultNow().notNull(),
+  module:         text("module").notNull(),
+  errorCode:      text("error_code").notNull(),
+  severity:       text("severity").notNull(),                 // critical|high|medium|low|unknown
+  message:        text("message").notNull(),
+  stackSample:    text("stack_sample"),                       // first 600 chars of stack
+  context:        jsonb("context").$type<Record<string, unknown>>().default({}),
+  classification: jsonb("classification").$type<Record<string, unknown>>().default({}),
+  actionTaken:    text("action_taken"),                       // repair action that was applied
+  resolved:       boolean("resolved").default(false),
+}, (t) => [
+  index("ee_fingerprint_idx").on(t.fingerprint),
+  index("ee_occurred_idx").on(t.occurredAt),
+  index("ee_module_idx").on(t.module),
+  index("ee_code_idx").on(t.errorCode),
+  index("ee_severity_idx").on(t.severity),
+]);
+export type ErrorEvent = typeof errorEvents.$inferSelect;
+
+// ── Error Resolutions (Institutional Knowledge Base) ──────────────────────────
+// One row per unique error fingerprint. Accumulates forever across all deployments.
+// NEVER purged — this is the ever-growing institutional memory of the system.
+// The self-heal engine queries this BEFORE applying its default repair policy,
+// so past experience directly improves future auto-repair decisions.
+export const errorResolutions = pgTable("error_resolutions", {
+  id:               serial("id").primaryKey(),
+  fingerprint:      text("fingerprint").notNull(),            // unique, "{module}:{errorCode}"
+  errorCode:        text("error_code").notNull(),
+  module:           text("module").notNull(),
+  firstSeenAt:      timestamp("first_seen_at").defaultNow().notNull(),
+  lastSeenAt:       timestamp("last_seen_at").defaultNow().notNull(),
+  occurrenceCount:  integer("occurrence_count").notNull().default(1),
+  resolvedCount:    integer("resolved_count").notNull().default(0),
+  // "auto_heal" = self-heal engine fixed it; "code_fix" = human deployed a fix;
+  // "transient" = resolved on its own (quota reset, token refresh, etc.);
+  // "suppressed" = classified as noise and suppressed; "unknown" = unclear
+  resolutionType:   text("resolution_type"),
+  resolutionNotes:  text("resolution_notes"),                 // free-text explanation of fix
+  successfulAction: text("successful_action"),                // which RepairAction worked
+  // Confidence 0.0–1.0: resolvedCount / occurrenceCount, clamped.
+  // Grows as the same fix keeps working. Self-heal prefers high-confidence patterns.
+  confidence:       real("confidence").notNull().default(0.0),
+  updatedAt:        timestamp("updated_at").defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex("er_fingerprint_uniq").on(t.fingerprint),
+  index("er_code_idx").on(t.errorCode),
+  index("er_module_idx").on(t.module),
+  index("er_confidence_idx").on(t.confidence),
+  index("er_last_seen_idx").on(t.lastSeenAt),
+]);
+export type ErrorResolution = typeof errorResolutions.$inferSelect;
+
+// ── System Incident Log (Living Institutional Memory) ─────────────────────────
+// Every structural bug, root cause, fix, and lesson learned — across all crashes,
+// hot-loops, storms, schema bugs, and architectural fixes.  Builds forever.
+// The learning brain reads this daily and promotes high-recurrence lessons into
+// masterKnowledgeBank so they flow into every AI prompt automatically.
+// Never purged — this is the full operational history of CreatorOS.
+export const systemIncidentLog = pgTable("system_incident_log", {
+  id:             serial("id").primaryKey(),
+  incidentDate:   text("incident_date").notNull(),              // ISO date string "YYYY-MM-DD"
+  category:       text("category").notNull(),                   // see INCIDENT_CATEGORIES below
+  service:        text("service").notNull(),                    // affected service/module
+  rootCause:      text("root_cause").notNull(),                 // what caused it
+  fixDescription: text("fix_description").notNull(),            // what resolved it
+  lesson:         text("lesson").notNull(),                     // durable rule for the learning brain
+  migrationNumber: integer("migration_number"),                  // startup migration that fixed it (if any)
+  severity:       text("severity").notNull().default("high"),   // critical | high | medium | low
+  crashesPerDay:  integer("crashes_per_day"),                   // measured impact before fix
+  status:         text("status").notNull().default("resolved"), // resolved | monitoring | active
+  tags:           text("tags").array().default([]),
+  autoDetected:   boolean("auto_detected").notNull().default(false),
+  promotedToKnowledge: boolean("promoted_to_knowledge").notNull().default(false),
+  createdAt:      timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("sil_date_idx").on(t.incidentDate),
+  index("sil_category_idx").on(t.category),
+  index("sil_severity_idx").on(t.severity),
+  index("sil_promoted_idx").on(t.promotedToKnowledge),
+  index("sil_status_idx").on(t.status),
+]);
+export type SystemIncident = typeof systemIncidentLog.$inferSelect;
+
+// ── System Event Log (Permanent Cross-Deployment Audit Trail) ─────────────────
+// Every significant system action — publishes, self-heals, AI decisions,
+// migrations, quota events, and learning cycles — is written here forever.
+// Unlike application logs (which vanish on reboot/redeploy), this table persists
+// in the database across ALL deployments and is directly queryable by the learning
+// brain during its daily cycle to detect patterns and grow smarter over time.
+//
+// Event types:
+//   publish    — a Short or long-form was successfully uploaded to YouTube
+//   heal       — the prod-heal / self-healing system fixed something on boot
+//   decision   — the AI orchestrator made a strategic decision
+//   migration  — a startup migration ran and what it changed
+//   quota      — a quota event (trip, reset, budget warning)
+//   error      — a service-level error worth tracking across deployments
+//   learn      — the learning brain completed a cycle or generated insights
+//   system     — general system-level event (boot complete, token refresh, etc.)
+export const systemEventLog = pgTable("system_event_log", {
+  id:         serial("id").primaryKey(),
+  eventType:  text("event_type").notNull(),
+  service:    text("service").notNull(),
+  title:      text("title").notNull(),
+  detail:     jsonb("detail").$type<Record<string, unknown>>(),
+  userId:     text("user_id"),
+  severity:   text("severity").notNull().default("info"),
+  occurredAt: timestamp("occurred_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  index("sel_event_type_idx").on(t.eventType),
+  index("sel_service_idx").on(t.service),
+  index("sel_occurred_at_idx").on(t.occurredAt),
+  index("sel_user_id_idx").on(t.userId),
+  index("sel_severity_idx").on(t.severity),
+]);
+export type SystemEvent = typeof systemEventLog.$inferSelect;
+
+// ── Creative Library (Ever-expanding Asset Library) ───────────────────────────
+// Every music track, video filter, title template, hook pattern, and editing
+// preset that the system has ever generated or discovered lives here.
+// Items are scored by real YouTube Analytics (retention + CTR + success rate).
+// The best performers are automatically preferred by the encoder and AI systems.
+// New items are generated over time and added to the library, which expands
+// and evolves without limit — bad performers sink, good ones rise to the top.
+export const creativeLibrary = pgTable("creative_library", {
+  id:               serial("id").primaryKey(),
+  channelId:        integer("channel_id").notNull(),
+  // music | video_filter | title_template | hook_pattern | thumbnail_concept
+  type:             text("type").notNull(),
+  name:             text("name").notNull(),
+  description:      text("description"),
+  // Absolute path for physical-file assets (music tracks, etc.)
+  filePath:         text("file_path"),
+  // Structured config for non-file assets (ffmpeg filter strings, title templates)
+  config:           jsonb("config").$type<Record<string, unknown>>().default({}),
+  // Searchable tags for asset role and context, e.g. ['intro', 'longform'],
+  // ['short_arc', 'short'], ['title_template', 'battlefield']
+  tags:             text("tags").array().default([]),
+  // Composite performance score 0–100, weighted from real YouTube analytics.
+  // Starts at 50 (neutral) for all new items. Rises as videos using it perform
+  // well, falls when they underperform. Drives selection priority.
+  performanceScore: real("performance_score").notNull().default(50),
+  usageCount:       integer("usage_count").notNull().default(0),
+  successCount:     integer("success_count").notNull().default(0),
+  // Latest YouTube Analytics readings from videos that used this asset
+  avgRetention:     real("avg_retention"),
+  avgCtr:           real("avg_ctr"),
+  // ai_generated | discovered | manual
+  source:           text("source").notNull().default("ai_generated"),
+  // Soft-delete: set active=false to retire without losing history
+  active:           boolean("active").notNull().default(true),
+  metadata:         jsonb("metadata").$type<Record<string, unknown>>().default({}),
+  createdAt:        timestamp("created_at").defaultNow(),
+  updatedAt:        timestamp("updated_at").defaultNow(),
+}, (t) => [
+  index("cl_channel_type_idx").on(t.channelId, t.type),
+  index("cl_performance_idx").on(t.performanceScore),
+  index("cl_active_idx").on(t.active),
+  index("cl_channel_active_idx").on(t.channelId, t.active),
+]);
+export type CreativeLibraryItem = typeof creativeLibrary.$inferSelect;
+export type InsertCreativeLibraryItem = typeof creativeLibrary.$inferInsert;
+
+// ── Shadow Video Analytics ─────────────────────────────────────────────────────
+// Quota-free mirror of YouTube Analytics per published video.
+// Tier 1 — InnerTube (public, no auth): views, likes, comments, velocity.
+// Tier 2 — YouTube Studio API (OAuth, zero Data-API-quota cost): watch time,
+//           impressions, CTR, avg view duration, subscribers gained, revenue.
+// Tier 3 — Official Analytics API (Data API quota): spot-check verification only.
+export const shadowVideoAnalytics = pgTable("shadow_video_analytics", {
+  id:                      serial("id").primaryKey(),
+  userId:                  text("user_id").notNull(),
+  youtubeVideoId:          text("youtube_video_id").notNull(),
+  contentType:             text("content_type").notNull().default("short"),
+  gameName:                text("game_name"),
+  title:                   text("title"),
+  publishedAt:             timestamp("published_at"),
+  // ── Tier 1: InnerTube public (no auth, free) ──────────────────────────────
+  views:                   integer("views").notNull().default(0),
+  likes:                   integer("likes").notNull().default(0),
+  commentCount:            integer("comment_count").notNull().default(0),
+  // ── Velocity windows (derived from InnerTube snapshot history) ────────────
+  velocity24h:             integer("velocity_24h").notNull().default(0),
+  velocity7d:              integer("velocity_7d").notNull().default(0),
+  velocity28d:             integer("velocity_28d").notNull().default(0),
+  velocityPerHour:         real("velocity_per_hour").notNull().default(0),
+  engagementRate:          real("engagement_rate").notNull().default(0),
+  // ── Tier 2: Studio API (OAuth, zero Data API quota) ──────────────────────
+  watchTimeMinutes:        real("watch_time_minutes"),
+  averageViewDurationSec:  real("average_view_duration_sec"),
+  averageViewPercent:      real("average_view_percent"),
+  impressions:             integer("impressions"),
+  impressionsCtr:          real("impressions_ctr"),
+  subscribersGained:       integer("subscribers_gained"),
+  shares:                  integer("shares"),
+  estimatedRevenue:        real("estimated_revenue"),
+  trafficSources:          jsonb("traffic_sources").$type<Record<string, number>>(),
+  // ── Tier 3: Official Analytics API verification (quota-limited) ───────────
+  verifiedViews:           integer("verified_views"),
+  verifiedWatchTime:       real("verified_watch_time"),
+  verifiedCtr:             real("verified_ctr"),
+  discrepancyPct:          real("discrepancy_pct"),
+  // ── Data source timestamps ─────────────────────────────────────────────────
+  publicDataAt:            timestamp("public_data_at"),
+  studioDataAt:            timestamp("studio_data_at"),
+  analyticsVerifiedAt:     timestamp("analytics_verified_at"),
+  // ── Composite scores ───────────────────────────────────────────────────────
+  performanceScore:        real("performance_score"),
+  momentumScore:           real("momentum_score"),
+  measuredAt:              timestamp("measured_at").notNull().defaultNow(),
+  metadata:                jsonb("metadata").$type<Record<string, unknown>>().default({}),
+}, (t) => [
+  index("sva_user_idx").on(t.userId),
+  index("sva_video_idx").on(t.youtubeVideoId),
+  index("sva_measured_idx").on(t.measuredAt),
+  index("sva_perf_idx").on(t.performanceScore),
+  uniqueIndex("sva_user_video_uq").on(t.userId, t.youtubeVideoId),
+]);
+export type ShadowVideoAnalytics = typeof shadowVideoAnalytics.$inferSelect;
+
+// ── Shadow Channel Analytics ───────────────────────────────────────────────────
+// Daily channel-level rollup combining all shadow sources.
+export const shadowChannelAnalytics = pgTable("shadow_channel_analytics", {
+  id:                       serial("id").primaryKey(),
+  userId:                   text("user_id").notNull(),
+  date:                     text("date").notNull(),  // YYYY-MM-DD
+  subscriberCount:          integer("subscriber_count"),
+  totalVideoCount:          integer("total_video_count"),
+  // Aggregated from shadow_video_analytics
+  totalViews:               integer("total_views").notNull().default(0),
+  totalLikes:               integer("total_likes").notNull().default(0),
+  totalComments:            integer("total_comments").notNull().default(0),
+  newVideosPublished:       integer("new_videos_published").notNull().default(0),
+  avgEngagementRate:        real("avg_engagement_rate"),
+  // Studio API channel rollups (zero Data API quota)
+  totalWatchTimeMinutes:    real("total_watch_time_minutes"),
+  totalImpressions:         integer("total_impressions"),
+  avgCtr:                   real("avg_ctr"),
+  subscribersGainedToday:   integer("subscribers_gained_today"),
+  estimatedDailyRevenue:    real("estimated_daily_revenue"),
+  source:                   text("source").notNull().default("innertube"),
+  createdAt:                timestamp("created_at").notNull().defaultNow(),
+  metadata:                 jsonb("metadata").$type<Record<string, unknown>>().default({}),
+}, (t) => [
+  index("sca_user_idx").on(t.userId),
+  uniqueIndex("sca_user_date_uq").on(t.userId, t.date),
+]);
+export type ShadowChannelAnalytics = typeof shadowChannelAnalytics.$inferSelect;
+
+// ── Service State ─────────────────────────────────────────────────────────────
+// Persistent key-value store for service runtime state that must survive
+// container reboots and deployments.  Replaces in-memory Maps for _lastCycleAt,
+// lastRunAt, lastFullCycleAt and similar operational timestamps.
+// API: server/lib/service-state.ts → getState / setState / setStateAsync
+export const serviceState = pgTable("service_state", {
+  id:        serial("id").primaryKey(),
+  service:   text("service").notNull(),
+  key:       text("key").notNull(),
+  value:     jsonb("value").$type<Record<string, unknown>>().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("service_state_svc_key_uq").on(t.service, t.key),
+  index("service_state_svc_idx").on(t.service),
+]);
+export type ServiceState = typeof serviceState.$inferSelect;
+
+// ── ASI Skill Learning System ─────────────────────────────────────────────────
+// The brain masters one skill domain at a time.  For each skill it runs
+// accelerated learning cycles (every 4h) — gathering all available evidence,
+// extracting new memories, self-assessing mastery.  When mastery score crosses
+// the threshold AND enough memories exist it marks the skill mastered and
+// immediately starts the next.  There is always a next skill.
+
+export const brainSkills = pgTable("brain_skills", {
+  id:                 serial("id").primaryKey(),
+  userId:             text("user_id").notNull(),
+  name:               text("name").notNull(),
+  domain:             text("domain").notNull(),
+  description:        text("description").notNull(),
+  status:             text("status").notNull().default("pending"),
+  masteryScore:       integer("mastery_score").notNull().default(0),
+  masteryThreshold:   integer("mastery_threshold").notNull().default(80),
+  learningCycleCount: integer("learning_cycle_count").notNull().default(0),
+  currentFocusArea:   text("current_focus_area"),
+  priority:           integer("priority").notNull().default(0),
+  masteredAt:         timestamp("mastered_at"),
+  lastCycleAt:        timestamp("last_cycle_at"),
+  metadata:           jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt:          timestamp("created_at").defaultNow(),
+  updatedAt:          timestamp("updated_at").defaultNow(),
+}, (t) => [
+  index("bs_user_idx").on(t.userId),
+  index("bs_status_idx").on(t.status),
+  index("bs_priority_idx").on(t.priority),
+  uniqueIndex("bs_user_name_uq").on(t.userId, t.name),
+]);
+export type BrainSkill = typeof brainSkills.$inferSelect;
+
+export const brainSkillMemories = pgTable("brain_skill_memories", {
+  id:               serial("id").primaryKey(),
+  userId:           text("user_id").notNull(),
+  skillId:          integer("skill_id").notNull(),
+  skillName:        text("skill_name").notNull(),
+  fact:             text("fact").notNull(),
+  confidence:       integer("confidence").notNull().default(50),
+  evidenceCount:    integer("evidence_count").notNull().default(1),
+  source:           text("source").notNull().default("reasoning"),
+  applicationCount: integer("application_count").notNull().default(0),
+  lastValidatedAt:  timestamp("last_validated_at"),
+  metadata:         jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt:        timestamp("created_at").defaultNow(),
+  updatedAt:        timestamp("updated_at").defaultNow(),
+}, (t) => [
+  index("bsm_user_idx").on(t.userId),
+  index("bsm_skill_idx").on(t.skillId),
+  index("bsm_confidence_idx").on(t.confidence),
+]);
+export type BrainSkillMemory = typeof brainSkillMemories.$inferSelect;
+
+// ── Platform Compliance Rules (Immune System) ─────────────────────────────────
+// Stores the system's living model of what each platform allows/forbids.
+// Hard-blocked rules prevent publishing outright; warnings are logged and noted.
+// Seeds from AI on first boot; refreshed weekly; updated when violations occur.
+export const platformComplianceRules = pgTable("platform_compliance_rules", {
+  id:           serial("id").primaryKey(),
+  userId:       text("user_id").notNull(),
+  platform:     text("platform").notNull().default("youtube"),
+  category:     text("category").notNull(), // monetization|copyright|community|spam|shorts|gaming
+  rule:         text("rule").notNull(),
+  severity:     text("severity").notNull().default("warning"), // hard_block|warning
+  matchPattern: text("match_pattern"), // optional regex/keyword pattern for auto-matching
+  source:       text("source").notNull().default("ai_seeded"),
+  isActive:     boolean("is_active").notNull().default(true),
+  triggerCount: integer("trigger_count").notNull().default(0),
+  lastTriggered: timestamp("last_triggered"),
+  metadata:     jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt:    timestamp("created_at").notNull().defaultNow(),
+  updatedAt:    timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [
+  index("compliance_rule_user_idx").on(t.userId),
+  index("compliance_rule_platform_idx").on(t.platform),
+  index("compliance_rule_severity_idx").on(t.severity),
+  index("compliance_rule_category_idx").on(t.category),
+]);
+export type PlatformComplianceRule = typeof platformComplianceRules.$inferSelect;
+
+// ── Service Proposals (Self-Architect) ────────────────────────────────────────
+// When the system identifies a capability gap it cannot fill with existing
+// services, the self-architect writes a structured proposal here.
+// A human reviews and approves before any code is actually built.
+export const serviceProposals = pgTable("service_proposals", {
+  id:              serial("id").primaryKey(),
+  userId:          text("user_id").notNull(),
+  title:           text("title").notNull(),
+  problem:         text("problem").notNull(),
+  proposedService: text("proposed_service").notNull(),
+  scaffold:        text("scaffold").notNull(), // TypeScript file skeleton
+  rationale:       text("rationale").notNull(),
+  evidenceSources: text("evidence_sources").array().notNull().default([]),
+  priority:        integer("priority").notNull().default(5),
+  status:          text("status").notNull().default("pending"), // pending|approved|rejected|built
+  reviewedAt:      timestamp("reviewed_at"),
+  createdAt:       timestamp("created_at").notNull().defaultNow(),
+  metadata:        jsonb("metadata").$type<Record<string, any>>().default({}),
+}, (t) => [
+  index("sp_user_idx").on(t.userId),
+  index("sp_status_idx").on(t.status),
+]);
+export type ServiceProposal = typeof serviceProposals.$inferSelect;
+
+// ── Service Performance Metrics (Architecture Critic) ─────────────────────────
+// Tracks each background service's contribution to real outcomes.
+// Services that haven't contributed in 7+ days are flagged for review.
+export const servicePerformanceMetrics = pgTable("service_performance_metrics", {
+  id:                    serial("id").primaryKey(),
+  service:               text("service").notNull(),
+  lastRunAt:             timestamp("last_run_at"),
+  outputsGenerated:      integer("outputs_generated").notNull().default(0),
+  knowledgeEntriesAdded: integer("knowledge_entries_added").notNull().default(0),
+  quotaConsumed:         integer("quota_consumed").notNull().default(0),
+  errorCount:            integer("error_count").notNull().default(0),
+  contributionScore:     integer("contribution_score").notNull().default(50),
+  critiquedAt:           timestamp("critiqued_at"),
+  critiqueSummary:       text("critique_summary"),
+  metadata:              jsonb("metadata").$type<Record<string, any>>().default({}),
+  updatedAt:             timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("spm_service_uq").on(t.service),
+]);
+export type ServicePerformanceMetric = typeof servicePerformanceMetrics.$inferSelect;
+
+// ── ASI Signal Bus ─────────────────────────────────────────────────────────────
+// Durable cross-ASI message queue. Back Catalog ASI, Live Stream ASI, and
+// Master ASI all publish/consume typed signals through this table.
+export const asiSignals = pgTable("asi_signals", {
+  id:          serial("id").primaryKey(),
+  fromTier:    text("from_tier").notNull(),   // back-catalog | live-stream | master
+  toTier:      text("to_tier").notNull(),     // back-catalog | live-stream | master
+  signalType:  text("signal_type").notNull(), // performance_report | strategy_update | compliance_alert | quota_allocation | capability_request
+  payload:     jsonb("payload").$type<Record<string, any>>().default({}),
+  processedAt: timestamp("processed_at"),
+  createdAt:   timestamp("created_at").notNull().defaultNow(),
+}, (t) => [
+  index("asi_sig_to_idx").on(t.toTier),
+  index("asi_sig_proc_idx").on(t.processedAt),
+]);
+export type AsiSignal = typeof asiSignals.$inferSelect;
+
+// ── ASI Cycle Reports ──────────────────────────────────────────────────────────
+// Structured performance reports each tier writes at the end of every cycle.
+// Master ASI reads these to synthesise cross-domain strategy.
+export const asiCycleReports = pgTable("asi_cycle_reports", {
+  id:              serial("id").primaryKey(),
+  userId:          text("user_id").notNull(),
+  tier:            text("tier").notNull(),       // back-catalog | live-stream | master
+  cycleType:       text("cycle_type").notNull(), // light | full
+  metricsSnapshot: jsonb("metrics_snapshot").$type<Record<string, any>>().default({}),
+  createdAt:       timestamp("created_at").notNull().defaultNow(),
+}, (t) => [
+  index("asi_rep_user_idx").on(t.userId),
+  index("asi_rep_tier_idx").on(t.tier),
+  index("asi_rep_created_idx").on(t.createdAt),
+]);
+export type AsiCycleReport = typeof asiCycleReports.$inferSelect;
+
+// ── ASI Strategy ───────────────────────────────────────────────────────────────
+// Master ASI writes its current unified strategy here after every full synthesis.
+// Both tier ASIs read this to inherit Master's directives on each cycle.
+export const asiStrategy = pgTable("asi_strategy", {
+  id:                serial("id").primaryKey(),
+  userId:            text("user_id").notNull().unique(),
+  activeStrategy:    jsonb("active_strategy").$type<Record<string, any>>().default({}),
+  lastSynthesizedAt: timestamp("last_synthesized_at").notNull().defaultNow(),
+  confidenceScore:   integer("confidence_score").notNull().default(70),
+  version:           integer("version").notNull().default(1),
+  createdAt:         timestamp("created_at").notNull().defaultNow(),
+  updatedAt:         timestamp("updated_at").defaultNow(),
+}, (t) => [
+  index("asi_strat_user_idx").on(t.userId),
+]);
+export type AsiStrategyRecord = typeof asiStrategy.$inferSelect;
+
+// ── Hypotheses ─────────────────────────────────────────────────────────────────
+// The hypothesis engine writes testable questions here.
+// The autonomous-experimenter picks them up and runs controlled tests.
+// Confirmed or rejected hypotheses feed back to masterKnowledgeBank.
+export const hypotheses = pgTable("hypotheses", {
+  id:              serial("id").primaryKey(),
+  userId:          text("user_id").notNull(),
+  statement:       text("statement").notNull(),
+  domain:          text("domain").notNull(), // timing|format|hook|seo|thumbnail|engagement
+  rationale:       text("rationale").notNull(),
+  confidence:      integer("confidence").notNull().default(30),
+  evidenceFor:     integer("evidence_for").notNull().default(0),
+  evidenceAgainst: integer("evidence_against").notNull().default(0),
+  status:          text("status").notNull().default("untested"), // untested|testing|confirmed|rejected
+  experimentId:    integer("experiment_id"),
+  testedAt:        timestamp("tested_at"),
+  metadata:        jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt:       timestamp("created_at").notNull().defaultNow(),
+  updatedAt:       timestamp("updated_at").defaultNow(),
+}, (t) => [
+  index("hyp_user_idx").on(t.userId),
+  index("hyp_status_idx").on(t.status),
+  index("hyp_domain_idx").on(t.domain),
+]);
+export type Hypothesis = typeof hypotheses.$inferSelect;
+
+// ── Longform Extraction Segments ─────────────────────────────────────────────
+// Tracks which time-ranges of a source video have already been extracted as
+// long-form clips, so the same footage is never queued twice.
+export const longformExtractionSegments = pgTable("longform_extraction_segments", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  sourceVideoId: integer("source_video_id").notNull().references(() => videos.id),
+  startSec: integer("start_sec").notNull(),
+  endSec: integer("end_sec").notNull(),
+  durationSec: integer("duration_sec").notNull(),
+  title: text("title"),
+  description: text("description"),
+  tags: text("tags").array().default([]),
+  gameName: text("game_name"),
+  qualityScore: integer("quality_score").default(5),
+  retentionScore: integer("retention_score").default(5),
+  hookDescription: text("hook_description"),
+  endingType: text("ending_type"),
+  contentCategory: text("content_category"),
+  status: text("status").notNull().default("pending"),
+  queueItemId: integer("queue_item_id"),
+  youtubeVideoId: text("youtube_video_id"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => [
+  index("lfe_user_idx").on(t.userId),
+  index("lfe_source_idx").on(t.sourceVideoId),
+  index("lfe_status_idx").on(t.status),
+]);
+export type LongformExtractionSegment = typeof longformExtractionSegments.$inferSelect;
+export const insertLongformExtractionSegmentSchema = createInsertSchema(longformExtractionSegments).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertLongformExtractionSegment = z.infer<typeof insertLongformExtractionSegmentSchema>;

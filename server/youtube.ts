@@ -851,6 +851,9 @@ export async function uploadVideoToYouTube(
     videoFilePath?: string;
     videoBuffer?: Buffer;
     enableMonetization?: boolean;
+    /** YouTube's "Game" field in Studio — passed as snippet.gameTitle (undocumented but accepted). */
+    gameTitle?: string;
+    selfDeclaredMadeWithAI?: boolean;
   }
 ): Promise<{ youtubeId: string; title: string; status: string } | null> {
   if (isQuotaBreakerTripped()) throw Object.assign(new Error("YouTube API quota exceeded — circuit breaker active until midnight Pacific"), { code: "QUOTA_EXCEEDED" });

@@ -16,6 +16,7 @@
 //    for critical-path callers (publish, pre-flight, live-chat).
 
 import { createLogger } from "./logger";
+import { logIncidentOnce } from "./incident-log";
 
 const logger = createLogger("ai-semaphore");
 
@@ -31,6 +32,7 @@ const BACKGROUND_MAX_QUEUE_DEPTH = 8;
 const _bootTime = Date.now();
 
 let _busy = false;
+let _busySince: number | null = null; // timestamp when slot was last acquired
 let _lastReleaseAt = 0;
 
 type WakeEntry = { resolve: () => void; reject: (e: Error) => void; background: boolean };
@@ -340,4 +342,133 @@ export function cleanupPreAcquiredToken(): void {
     // Release the slot via the normal path so any queued waiters are notified.
     releaseAISlot();
   }
+}
+// Independent concurrency pools so pipeline tiers are never blocked by
+// background optimization engines filling every slot.
+//
+// Tier ownership:
+//   shorts_pipeline (3 slots)  → shorts-prep-pipeline (title/desc/SEO/thumbnail)
+//   longform_pipeline (2 slots) → longform-prep-pipeline + ai-orchestrator
+//   background (8 slots)       → all other optimization/improvement engines
+//
+// NOTE: p-limit v5+ is pure ESM and cannot be imported in a CJS production
+// bundle (causes "TypeError: (0, hD.default) is not a function" on boot).
+// We use an equivalent hand-written limiter instead — identical API, zero deps.
+
+export type AiTier = "shorts_pipeline" | "longform_pipeline" | "background";
+
+export const TIER_LIMITS: Record<AiTier, number> = {
+  shorts_pipeline: 3,
+  longform_pipeline: 2,
+  // Reduced from 2 → 1: only 1 background AI call runs at a time (fully
+  // sequential). Others queue in the pool behind it. This matches the user's
+  // intent: "only takes a new task when one finishes — won't fill the last
+  // slot till one is almost done." Critical pipeline tiers are unaffected.
+  background: 1,
+};
+
+// ── Minimal concurrency limiter (drop-in replacement for p-limit) ─────────────
+type ConcurrencyLimiter = {
+  <T>(fn: () => Promise<T>): Promise<T>;
+  readonly activeCount: number;
+  readonly pendingCount: number;
+};
+
+function makeConcurrencyLimiter(concurrency: number): ConcurrencyLimiter {
+  if (concurrency < 1) throw new RangeError("Concurrency limit must be >= 1");
+  let active = 0;
+  const queue: Array<() => void> = [];
+
+  function drain() {
+    while (active < concurrency && queue.length > 0) {
+      const run = queue.shift()!;
+      run();
+    }
+  }
+
+  function limiter<T>(fn: () => Promise<T>): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      const run = () => {
+        active++;
+        Promise.resolve()
+          .then(() => fn())
+          .then(resolve, reject)
+          .finally(() => {
+            active--;
+            drain();
+          });
+      };
+      if (active < concurrency) {
+        run();
+      } else {
+        queue.push(run);
+      }
+    });
+  }
+
+  Object.defineProperty(limiter, "activeCount",  { get: () => active });
+  Object.defineProperty(limiter, "pendingCount", { get: () => queue.length });
+  return limiter as ConcurrencyLimiter;
+}
+
+const _tierPools: Record<AiTier, ConcurrencyLimiter> = {
+  shorts_pipeline:  makeConcurrencyLimiter(TIER_LIMITS.shorts_pipeline),
+  longform_pipeline: makeConcurrencyLimiter(TIER_LIMITS.longform_pipeline),
+  background:       makeConcurrencyLimiter(TIER_LIMITS.background),
+};
+
+/**
+ * Returns the pLimit instance for the given tier.
+ * Wrap async AI calls in this to get semaphore protection.
+ *
+ *   const sem = getAiSemaphore('shorts_pipeline');
+ *   return sem(() => callOpenAI({ messages, tier: 'shorts_pipeline' }));
+ */
+export function getAiSemaphore(tier: AiTier = "background") {
+  return _tierPools[tier];
+}
+
+/**
+ * Fast-reject if the tier pool is at capacity. Call this BEFORE queueing
+ * so callers get an immediate error instead of waiting in queue.
+ */
+export function assertTierCapacity(tier: AiTier, module: string): void {
+  const limit = TIER_LIMITS[tier];
+  const pool = _tierPools[tier];
+  if (pool.activeCount >= limit) {
+    const label = {
+      shorts_pipeline: "Shorts Pipeline",
+      longform_pipeline: "Long-form Pipeline",
+      background: "background",
+    }[tier];
+    throw new Error(
+      `[${module}] AI queue full for ${label} tasks ` +
+        `(${pool.activeCount}/${limit} active, ${pool.pendingCount} pending) — request dropped`
+    );
+  }
+}
+
+
+/**
+ * Snapshot of all three tier queues.
+ * Exposed via /api/health for diagnostics.
+ */
+export function getAiQueueStatus() {
+  return {
+    shorts_pipeline: {
+      active: _tierPools.shorts_pipeline.activeCount,
+      pending: _tierPools.shorts_pipeline.pendingCount,
+      limit: TIER_LIMITS.shorts_pipeline,
+    },
+    longform_pipeline: {
+      active: _tierPools.longform_pipeline.activeCount,
+      pending: _tierPools.longform_pipeline.pendingCount,
+      limit: TIER_LIMITS.longform_pipeline,
+    },
+    background: {
+      active: _tierPools.background.activeCount,
+      pending: _tierPools.background.pendingCount,
+      limit: TIER_LIMITS.background,
+    },
+  };
 }
