@@ -98,6 +98,22 @@ async function grindUserContent(userId: string): Promise<GrindState> {
     pacingEnhanced: 0,
   };
 
+  // Load strategy brain signals — game weights, optimal duration, optimal publish hour.
+  // Falls back to safe defaults if the strategy brain is not yet available.
+  let strategyGameWeights: Record<string, number> = {};
+  let preferredDurationMin = 10;
+  let preferredPublishHour = 15;
+  try {
+    const { getStrategyState } = await import("./strategy-brain");
+    const strategy = await getStrategyState(userId);
+    strategyGameWeights = strategy.gameWeights ?? {};
+    preferredDurationMin = strategy.optimalDurationMin ?? 10;
+    preferredPublishHour = strategy.optimalPublishHour ?? 15;
+  } catch { /* strategy brain not ready, use defaults */ }
+
+  const preferredGame = Object.entries(strategyGameWeights)
+    .sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+
   const allVideos = await storage.getVideosByUser(userId);
   const longFormVideos = allVideos.filter((v: any) => {
     const meta = (v.metadata as any) || {};
@@ -130,13 +146,13 @@ async function grindUserContent(userId: string): Promise<GrindState> {
       state.videosWithRemaining++;
 
       if (exhaustionLevel < 80) {
-        const newClips = await extractUntappedMoments(userId, video);
+        const newClips = await extractUntappedMoments(userId, video, preferredGame, preferredPublishHour);
         state.clipsQueued += newClips;
       }
 
       // Also extract long-form clips (5-60 min) for length experimentation.
       // Capped at 1 long-form clip per video per grind cycle to control cost.
-      const lfClips = await extractLongFormMoments(userId, video);
+      const lfClips = await extractLongFormMoments(userId, video, preferredGame, preferredDurationMin, preferredPublishHour);
       state.longFormClipsQueued += lfClips;
 
       const seoResult = await viralSEORefresh(userId, video);
@@ -222,10 +238,21 @@ async function getSEOKnowledgeForClips(userId: string, gameName: string): Promis
   }
 }
 
-async function extractUntappedMoments(userId: string, video: any): Promise<number> {
+async function extractUntappedMoments(
+  userId: string,
+  video: any,
+  preferredGame: string | null = null,
+  preferredPublishHour = 15,
+): Promise<number> {
   const meta = (video.metadata as any) || {};
   const durSec = meta.durationSec || parseDurationToSeconds(meta.duration) || 600;
-  const gameName = meta.gameName || meta.game || "PS5 Gameplay";
+  // Use the strategy-preferred game if metadata doesn't have one, and prepend
+  // the preferred game to prompts so the AI focuses on the highest-value content.
+  const rawGameName = meta.gameName || meta.game || null;
+  const gameName = rawGameName || preferredGame || "PS5 Gameplay";
+  const gameHint = preferredGame && !rawGameName
+    ? `\n\n⭐ STRATEGY PRIORITY: The channel's highest-performing game right now is "${preferredGame}". Prioritize clip titles and hooks that reference "${preferredGame}" when applicable.`
+    : "";
   const youtubeId = meta.youtubeId || meta.youtubeVideoId;
 
   const existingClips = await db.select().from(autopilotQueue)
@@ -274,7 +301,7 @@ For NO COMMENTARY PS5 gaming, viral moments include:
 - A clutch dodge or parry at the last possible moment
 - An unexpected enemy ambush
 - Speed-running a section perfectly
-- Any "wait for it..." moment with a payoff${retentionContext}${seoContext}
+- Any "wait for it..." moment with a payoff${retentionContext}${seoContext}${gameHint}
 
 VIRAL RULES:
 - First frame must be VISUALLY EXPLOSIVE — no menus, no inventory, no walking
@@ -314,6 +341,8 @@ Return raw JSON only (no markdown code blocks):
       if (moment.endSec - moment.startSec < 8) continue;
 
       const scheduleTime = await getOptimalClipScheduleTime(userId, queued);
+      // Override the hour with the strategy-preferred publish hour
+      scheduleTime.setUTCHours(preferredPublishHour, scheduleTime.getUTCMinutes(), 0, 0);
       const title = String(moment.title || `${gameName} Moment`).substring(0, 90) + " #Shorts";
       const description = `${moment.hookDescription || ""}\n\n${moment.retentionStrategy || ""}\n\nPure PS5 gameplay — no commentary.\n\n#Shorts #PS5 #NoCommentary #${gameName.replace(/\s+/g, "")} #Gaming`;
 
@@ -392,7 +421,13 @@ async function getOptimalLongFormScheduleTime(userId: string): Promise<Date> {
  *
  * Minimum 8 min ensures every clip qualifies for YouTube AdSense mid-roll ads.
  */
-async function extractLongFormMoments(userId: string, video: any): Promise<number> {
+async function extractLongFormMoments(
+  userId: string,
+  video: any,
+  preferredGame: string | null = null,
+  preferredDurationMin = 10,
+  preferredPublishHour = 15,
+): Promise<number> {
   const meta = (video.metadata as any) || {};
   const durSec = meta.durationSec || parseDurationToSeconds(meta.duration) || 0;
 
@@ -404,13 +439,24 @@ async function extractLongFormMoments(userId: string, video: any): Promise<numbe
     ? new Date(meta.longFormClipExtractedAt).getTime() : 0;
   if (Date.now() - lastExtracted < LONG_FORM_REEXTRACT_GAP_MS) return 0;
 
-  const gameName = meta.gameName || meta.game || "PS5 Gameplay";
+  const rawGameName = meta.gameName || meta.game || null;
+  const gameName = rawGameName || preferredGame || "PS5 Gameplay";
   const youtubeId = meta.youtubeId || meta.youtubeVideoId;
 
-  // Pick a random target duration that fits in the video
+  // Bias target duration toward the strategy-preferred duration, with fallback
+  // to random selection if the preferred duration doesn't fit the video.
   const validTargets = LONG_FORM_DURATION_TARGETS_SEC.filter(t => t < durSec * 0.9);
   if (validTargets.length === 0) return 0;
-  const targetSec = validTargets[Math.floor(Math.random() * validTargets.length)];
+
+  const preferredDurationSec = preferredDurationMin * 60;
+  // Find the target closest to the strategy preference
+  const closestTarget = validTargets.reduce((prev, curr) =>
+    Math.abs(curr - preferredDurationSec) < Math.abs(prev - preferredDurationSec) ? curr : prev
+  );
+  // Use the closest target 70% of the time; random otherwise to preserve experimentation
+  const targetSec = Math.random() < 0.7
+    ? closestTarget
+    : validTargets[Math.floor(Math.random() * validTargets.length)];
   const targetMin = Math.round(targetSec / 60);
 
   if (!tokenBudget.checkBudget("content-grinder", 2000)) return 0;
@@ -477,6 +523,8 @@ Return raw JSON only (no markdown):
     }
 
     const scheduledAt = await getOptimalLongFormScheduleTime(userId);
+    // Override the hour with the strategy-preferred publish hour
+    scheduledAt.setUTCHours(preferredPublishHour, scheduledAt.getUTCMinutes(), 0, 0);
     const title = String(parsed.title).substring(0, 90);
     const description = String(parsed.description || `${gameName} gameplay — no commentary.\n\n#PS5 #NoCommentary #${gameName.replace(/\s+/g, "")} #Gaming`).substring(0, 5000);
 

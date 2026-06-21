@@ -316,17 +316,38 @@ export async function processPendingExtractions(userId: string): Promise<{ proce
   let processed = 0;
   let failed = 0;
 
-  // Get pending jobs — limit to 2 to avoid disk exhaustion
-  const pendingJobs = await db.select()
+  // Get pending jobs — fetch a larger batch to allow strategy-based reordering,
+  // then slice to MAX_CONCURRENT_PER_USER after sorting.
+  const jobs = await db.select()
     .from(clipExtractionJobs)
     .where(and(
       eq(clipExtractionJobs.userId, userId),
       eq(clipExtractionJobs.status, "pending"),
     ))
     .orderBy(desc(clipExtractionJobs.createdAt))
-    .limit(MAX_CONCURRENT_PER_USER);
+    .limit(MAX_CONCURRENT_PER_USER * 5);
 
-  if (pendingJobs.length === 0) return { processed: 0, failed: 0 };
+  if (jobs.length === 0) return { processed: 0, failed: 0 };
+
+  // Prioritize jobs whose gameTitle matches the strategy brain's top-weighted game.
+  let topGame = "";
+  try {
+    const { getStrategyState } = await import("./strategy-brain");
+    const strategy = await getStrategyState(userId);
+    const weights = strategy.gameWeights ?? {};
+    topGame = Object.entries(weights)
+      .sort((a, b) => b[1] - a[1])[0]?.[0] ?? "";
+  } catch { /* use original order */ }
+
+  if (topGame) {
+    jobs.sort((a, b) => {
+      const aMatch = (a.gameTitle ?? "").toLowerCase().includes(topGame.toLowerCase()) ? -1 : 0;
+      const bMatch = (b.gameTitle ?? "").toLowerCase().includes(topGame.toLowerCase()) ? -1 : 0;
+      return aMatch - bMatch;
+    });
+  }
+
+  const pendingJobs = jobs.slice(0, MAX_CONCURRENT_PER_USER);
 
   for (const job of pendingJobs) {
     try {
