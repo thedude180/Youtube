@@ -1,0 +1,543 @@
+/**
+ * youtube-existing-video-optimizer.ts
+ *
+ * Phase 3: Improve existing YouTube videos through better metadata, chapters,
+ * thumbnail concepts, and description refresh — without uploading new files.
+ *
+ * Runs until every catalog video has been optimized — no per-day cap.
+ * The YouTube quota breaker and MIN_HOURS_BETWEEN_UPDATES guard prevent
+ * overloading the API or re-hitting the same video too quickly.
+ * Priority: highest totalRevivalScore videos first (via back catalog engine).
+ *
+ * API pushes use updateYouTubeVideo() with before/after logged to videoUpdateHistory
+ * for rollback support.
+ */
+
+import { db } from "../db";
+import {
+  backCatalogVideos,
+  channels,
+  videoUpdateHistory,
+} from "@shared/schema";
+import { eq, and, desc, lt, gte, sql } from "drizzle-orm";
+import { createLogger } from "../lib/logger";
+import { callClaudeBackground, CLAUDE_MODELS } from "../lib/claude";
+import { sanitizeForPrompt, tokenBudget } from "../lib/ai-attack-shield";
+import { tryAcquireAISlotNow, releaseAISlot } from "../lib/ai-semaphore";
+
+const logger = createLogger("video-optimizer");
+
+// No per-day cap — quota breaker + MIN_HOURS_BETWEEN_UPDATES are the real gates.
+const MIN_HOURS_BETWEEN_UPDATES = 2;   // don't re-update the same video within 2 h
+
+// ── Log update to history ─────────────────────────────────────────────────────
+
+async function logUpdate(
+  userId: string,
+  youtubeVideoId: string,
+  videoTitle: string,
+  field: string,
+  oldValue: string,
+  newValue: string,
+): Promise<void> {
+  try {
+    await db.insert(videoUpdateHistory).values({
+      userId,
+      youtubeVideoId,
+      videoTitle,
+      field,
+      oldValue: oldValue.slice(0, 1000),
+      newValue: newValue.slice(0, 1000),
+      source: "back_catalog_optimizer",
+      status: "pushed",
+      youtubeStudioUrl: `https://studio.youtube.com/video/${youtubeVideoId}/edit`,
+    });
+  } catch (err: any) {
+    logger.debug(`[Optimizer] Log update failed: ${err.message?.slice(0, 100)}`);
+  }
+}
+
+// ── Push metadata update to YouTube ──────────────────────────────────────────
+
+async function pushToYouTube(
+  userId: string,
+  channelId: number,
+  youtubeVideoId: string,
+  updates: { title?: string; description?: string; tags?: string[]; categoryId?: string },
+): Promise<boolean> {
+  try {
+    const { isQuotaBreakerTripped, tripGlobalQuotaBreaker } = await import("../services/youtube-quota-tracker");
+    if (isQuotaBreakerTripped()) {
+      logger.warn(`[Optimizer] Quota breaker active — skipping YouTube push for ${youtubeVideoId}`);
+      return false;
+    }
+    const { updateYouTubeVideo } = await import("../youtube");
+    await updateYouTubeVideo(channelId, youtubeVideoId, updates, "write");
+    return true;
+  } catch (err: any) {
+    if (err.code === "QUOTA_EXCEEDED" || err.code === "QUOTA_CAP") {
+      logger.warn(`[Optimizer] Quota cap — tripping breaker and deferring: ${youtubeVideoId}`);
+      try {
+        const { tripGlobalQuotaBreaker } = await import("../services/youtube-quota-tracker");
+        tripGlobalQuotaBreaker();
+      } catch { /* ok */ }
+    } else {
+      logger.warn(`[Optimizer] YouTube push failed for ${youtubeVideoId}: ${err.message?.slice(0, 200)}`);
+    }
+    return false;
+  }
+}
+
+// ── AI: generate optimized metadata ──────────────────────────────────────────
+
+interface OptimizedMetadata {
+  title: string;
+  descriptionIntro: string;  // first 2 lines only — don't overwrite full desc
+  tags: string[];
+  noCommentaryFraming?: string;
+}
+
+async function generateOptimizedMetadata(video: {
+  title: string;
+  description?: string | null;
+  tags?: string[] | null;
+  gameName?: string | null;
+  durationSec?: number | null;
+  isVod?: boolean | null;
+  viewCount?: number | null;
+}): Promise<OptimizedMetadata | null> {
+  if (!tryAcquireAISlotNow()) return null;
+
+  try {
+    if (!tokenBudget.checkBudget("video-optimizer", 1500)) {
+      releaseAISlot();
+      return null;
+    }
+
+    const safeTitle = sanitizeForPrompt(video.title, 200);
+    const safeDesc  = sanitizeForPrompt(video.description ?? "", 400);
+    const durMin    = Math.round((video.durationSec ?? 0) / 60);
+    const existing  = (video.tags ?? []).slice(0, 10).join(", ");
+
+    // Try to detect game from title when game_name is missing or generic-sounding
+    let rawGame = video.gameName ?? "";
+    const GENERIC_GAME_NAMES = new Set([
+      "", "gaming", "games", "ps5", "ps4", "xbox", "playstation", "ai ps5",
+      "ai gaming", "ai action sequences", "ai combat strategies", "ai combat techniques",
+      "ai gaming chaos", "epic", "etgaming247", "ps5 action sequences",
+      "4k ps5 gameplay", "64 player ps5 match", "best ps5 educational content",
+      "best epic moments", "cinematic gameplay", "ai action highlights ps5",
+      "ai action highlights", "ai ps5 strategies",
+    ]);
+    if (!rawGame || GENERIC_GAME_NAMES.has(rawGame.toLowerCase())) {
+      // Try title-based detection before falling back to "Gaming"
+      const t = (video.title ?? "").toLowerCase();
+      if (/assassin.?s creed shadows|ac shadows/i.test(t))       rawGame = "Assassin's Creed Shadows";
+      else if (/valhalla/i.test(t))                               rawGame = "Assassin's Creed Valhalla";
+      else if (/assassin.?s creed iv|black flag/i.test(t))       rawGame = "Assassin's Creed IV: Black Flag";
+      else if (/assassin.?s creed/i.test(t))                     rawGame = "Assassin's Creed";
+      else if (/shadow of war|nemesis/i.test(t))                  rawGame = "Middle-earth: Shadow of War";
+      else if (/shadow of mordor/i.test(t))                       rawGame = "Middle-earth: Shadow of Mordor";
+      else if (/ratchet|clank/i.test(t))                         rawGame = "Ratchet & Clank";
+      else if (/space marine/i.test(t))                           rawGame = "Warhammer 40,000: Space Marine 2";
+      else if (/dragon age/i.test(t))                             rawGame = "Dragon Age: The Veilguard";
+      else if (/battlefield 6|bf6/i.test(t))                     rawGame = "Battlefield 6";
+      else if (/battlefield 2042/i.test(t))                       rawGame = "Battlefield 2042";
+      else if (/samurai.{0,30}stealth|stealth.{0,30}samurai/i.test(t)) rawGame = "Assassin's Creed Shadows";
+      else if (/adéwalé|adewale/i.test(t))                       rawGame = "Assassin's Creed IV: Black Flag";
+      else if (/parkour.*stealth|stealth.*parkour/i.test(t))     rawGame = "Assassin's Creed";
+      else if (/elden ring/i.test(t))                             rawGame = "Elden Ring";
+      else if (/god of war/i.test(t))                             rawGame = "God of War";
+    }
+    const game = sanitizeForPrompt(rawGame || "Gaming", 60);
+
+    const prompt = `You are optimizing an existing YouTube gaming video's metadata for the ET Gaming 274 channel.
+Channel identity: No commentary. No facecam. No fake hype. Raw gameplay cut with 92 BPM cadence — steady pressure, clean action, controlled chaos.
+
+Video: "${safeTitle}"
+Game: ${game}
+Duration: ${durMin} min
+Is VOD/stream replay: ${video.isVod ? "yes" : "no"}
+Current views: ${video.viewCount ?? 0}
+Current description (first 300 chars): ${safeDesc}
+Current tags: ${existing}
+
+Write:
+1. A new TITLE (40-70 chars) — sell the SITUATION, not just the game. No fake hype ("INSANE", "EPIC", "BEST EVER" unless clearly earned). No all-caps spam. Keep "No Commentary" visible when useful. Good pattern: "Final Objective Defense Got Brutal — ${game} No Commentary"
+2. A new DESCRIPTION INTRO (2 lines, 100-200 chars total) — follow the brand default: "Raw ${game} no-commentary gameplay cut with a 92 BPM cadence — steady pressure, clean action, objective fights, and no talking over the game."
+3. Up to 15 TAGS — CRITICAL: the full comma-separated tags string MUST be under 500 characters. Prioritize: game name, no commentary, gameplay, mode/type, platform, ETGaming274. No keyword stuffing.
+4. If VOD or long-form, add a short no-commentary framing sentence.
+
+Rules:
+- No fake hype, no misleading claims, no all-caps spam, no keyword stuffing
+- Keep title accurate — sell the situation, not just the game name
+- Tags must stay under 500 total characters (count carefully)
+- Thumbnail text should be 2-3 words max if suggested
+
+Respond in JSON only:
+{
+  "title": "...",
+  "descriptionIntro": "...",
+  "tags": ["tag1", "tag2", ...],
+  "noCommentaryFraming": "..."
+}`;
+
+    const response = await callClaudeBackground({ prompt, model: CLAUDE_MODELS.haiku });
+    releaseAISlot();
+
+    if (!response?.content?.trim()) return null;
+
+    let content = response.content.trim();
+    const fence = content.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+    if (fence) content = fence[1];
+
+    const parsed = JSON.parse(content) as OptimizedMetadata;
+
+    // Safety guards
+    if (!parsed.title || parsed.title.length > 100) return null;
+    if (!parsed.tags || !Array.isArray(parsed.tags)) return null;
+
+    return {
+      title: parsed.title.trim().slice(0, 100),
+      descriptionIntro: (parsed.descriptionIntro ?? "").trim().slice(0, 300),
+      tags: parsed.tags.slice(0, 15).map((t: string) => String(t).trim()).filter(Boolean),
+      noCommentaryFraming: parsed.noCommentaryFraming?.trim() ?? undefined,
+    };
+  } catch (err: any) {
+    releaseAISlot();
+    logger.debug(`[Optimizer] AI metadata generation failed: ${err.message?.slice(0, 150)}`);
+    return null;
+  }
+}
+
+// ── AI: generate chapters ─────────────────────────────────────────────────────
+
+async function generateChaptersAI(video: {
+  title: string;
+  description?: string | null;
+  gameName?: string | null;
+  durationSec?: number | null;
+}): Promise<string | null> {
+  if (!tryAcquireAISlotNow()) return null;
+
+  try {
+    const durMin = Math.round((video.durationSec ?? 0) / 60);
+    if (durMin < 5) { releaseAISlot(); return null; }
+
+    const safeTitle = sanitizeForPrompt(video.title, 200);
+    const game = sanitizeForPrompt(video.gameName ?? "Gaming", 60);
+
+    const segmentCount = Math.min(12, Math.max(3, Math.floor(durMin / 5)));
+    const segmentLen   = Math.floor(durMin / segmentCount);
+
+    const prompt = `Generate YouTube chapter timestamps for a ${durMin}-minute ${game} gaming video titled "${safeTitle}".
+
+Create ${segmentCount} chapters, each approximately ${segmentLen} minutes long.
+The first chapter MUST start at 0:00.
+Use realistic gaming chapter names (e.g., "Intro", "First Boss", "Exploration", "Story Continues", etc.).
+
+Respond in this exact format (one chapter per line):
+0:00 Intro
+${segmentLen}:00 [Chapter name]
+...
+
+Only output the timestamps, nothing else.`;
+
+    const response = await callClaudeBackground({ prompt, model: CLAUDE_MODELS.haiku });
+    releaseAISlot();
+
+    if (!response?.content?.trim()) return null;
+
+    // Validate: must start with 0:00
+    const lines = response.content.trim().split("\n").filter((l: string) => /^\d+:\d{2}/.test(l.trim()));
+    if (!lines.length || !lines[0].startsWith("0:00")) return null;
+
+    return lines.slice(0, 15).join("\n");
+  } catch (err: any) {
+    releaseAISlot();
+    logger.debug(`[Optimizer] Chapter generation failed: ${err.message?.slice(0, 100)}`);
+    return null;
+  }
+}
+
+// ── Build updated description ─────────────────────────────────────────────────
+
+function buildUpdatedDescription(
+  original: string,
+  intro: string,
+  chapters?: string | null,
+  sourceYoutubeId?: string | null,
+  noCommentaryFraming?: string,
+): string {
+  const parts: string[] = [];
+
+  // New intro at top
+  if (intro) parts.push(intro);
+  if (noCommentaryFraming) parts.push(noCommentaryFraming);
+
+  // Chapters block
+  if (chapters) {
+    parts.push("\n⏱ CHAPTERS:\n" + chapters);
+  }
+
+  // Source link if derivative
+  if (sourceYoutubeId) {
+    parts.push("\n📺 Full VOD: https://youtube.com/watch?v=" + sourceYoutubeId);
+  }
+
+  // Preserve existing description body (skip first 2 lines if they were the old intro)
+  const existingLines = original.split("\n");
+  const bodyStart = (existingLines[0].length < 200 && existingLines.length > 3) ? 2 : 0;
+  const existingBody = existingLines.slice(bodyStart).join("\n").trim();
+
+  if (existingBody && !parts.join("\n").includes(existingBody.slice(0, 50))) {
+    parts.push("\n" + existingBody);
+  }
+
+  return parts.join("\n").trim().slice(0, 5000);
+}
+
+// ── Public: optimize metadata for a single video ──────────────────────────────
+
+export async function optimizeExistingVideoMetadata(
+  userId: string,
+  youtubeVideoId: string,
+  pushToAPI = true,
+): Promise<{ success: boolean; changes: string[]; skipped?: string }> {
+  const [video] = await db.select()
+    .from(backCatalogVideos)
+    .where(and(
+      eq(backCatalogVideos.userId, userId),
+      eq(backCatalogVideos.youtubeVideoId, youtubeVideoId),
+    ))
+    .limit(1);
+
+  if (!video) return { success: false, changes: [], skipped: "video not found in back catalog" };
+
+  // Check if recently optimized
+  if (video.lastOptimizedAt) {
+    const hoursAgo = (Date.now() - new Date(video.lastOptimizedAt).getTime()) / 3_600_000;
+    if (hoursAgo < MIN_HOURS_BETWEEN_UPDATES) {
+      return { success: false, changes: [], skipped: `optimized ${Math.round(hoursAgo * 10) / 10}h ago — too soon` };
+    }
+  }
+
+  const optimized = await generateOptimizedMetadata(video);
+  if (!optimized) return { success: false, changes: [], skipped: "AI optimization unavailable" };
+
+  const changes: string[] = [];
+
+  // Find channel for API push
+  let channelId: number | null = video.channelId ?? null;
+  if (!channelId) {
+    try {
+      const [ch] = await db.select({ id: channels.id })
+        .from(channels)
+        .where(and(eq(channels.userId, userId), eq(channels.platform, "youtube")))
+        .limit(1);
+      channelId = ch?.id ?? null;
+    } catch { /* ok */ }
+  }
+
+  const updates: { title?: string; description?: string; tags?: string[] } = {};
+
+  // Title update
+  if (optimized.title && optimized.title !== video.title) {
+    await logUpdate(userId, youtubeVideoId, video.title, "title", video.title, optimized.title);
+    updates.title = optimized.title;
+    changes.push("title");
+  }
+
+  // Description update
+  if (optimized.descriptionIntro) {
+    const newDesc = buildUpdatedDescription(
+      video.description ?? "",
+      optimized.descriptionIntro,
+      null,
+      null,
+      optimized.noCommentaryFraming,
+    );
+    if (newDesc !== video.description) {
+      await logUpdate(userId, youtubeVideoId, video.title, "description",
+        (video.description ?? "").slice(0, 200),
+        newDesc.slice(0, 200),
+      );
+      updates.description = newDesc;
+      changes.push("description");
+    }
+  }
+
+  // Tags update
+  if (optimized.tags.length > 0) {
+    const currentTags = JSON.stringify(video.tags ?? []);
+    const newTags = JSON.stringify(optimized.tags);
+    if (currentTags !== newTags) {
+      await logUpdate(userId, youtubeVideoId, video.title, "tags", currentTags, newTags);
+      updates.tags = optimized.tags;
+      changes.push("tags");
+    }
+  }
+
+  if (!changes.length) {
+    return { success: true, changes: [], skipped: "no meaningful changes detected" };
+  }
+
+  // Push to YouTube API if enabled and channelId available
+  let pushed = false;
+  if (pushToAPI && channelId && Object.keys(updates).length > 0) {
+    pushed = await pushToYouTube(userId, channelId, youtubeVideoId, updates);
+  }
+
+  // Update local back catalog record
+  await db.update(backCatalogVideos)
+    .set({
+      title: updates.title ?? video.title,
+      tags: updates.tags ?? video.tags,
+      lastOptimizedAt: new Date(),
+      metadataUpdatesQueued: (video.metadataUpdatesQueued ?? 0) + 1,
+      updatedAt: new Date(),
+    })
+    .where(and(
+      eq(backCatalogVideos.userId, userId),
+      eq(backCatalogVideos.youtubeVideoId, youtubeVideoId),
+    ));
+
+  logger.info(`[Optimizer] ${youtubeVideoId}: changed [${changes.join(", ")}]${pushed ? " — pushed to YouTube" : " — logged only"}`);
+  return { success: true, changes };
+}
+
+// ── Public: generate chapters for an existing video ───────────────────────────
+
+export async function generateChaptersForExistingVideo(
+  userId: string,
+  youtubeVideoId: string,
+  pushToAPI = true,
+): Promise<{ success: boolean; chapters?: string; skipped?: string }> {
+  const [video] = await db.select()
+    .from(backCatalogVideos)
+    .where(and(
+      eq(backCatalogVideos.userId, userId),
+      eq(backCatalogVideos.youtubeVideoId, youtubeVideoId),
+    ))
+    .limit(1);
+
+  if (!video) return { success: false, skipped: "not in back catalog" };
+
+  // Skip if already has chapters
+  if (/\d:\d{2}/.test(video.description ?? "")) {
+    return { success: false, skipped: "already has timestamps in description" };
+  }
+
+  // Skip if too short
+  if ((video.durationSec ?? 0) < 300) {
+    return { success: false, skipped: "video too short for chapters" };
+  }
+
+  const chapters = await generateChaptersAI(video);
+  if (!chapters) return { success: false, skipped: "AI chapter generation failed" };
+
+  const newDesc = buildUpdatedDescription(video.description ?? "", "", chapters);
+
+  await logUpdate(userId, youtubeVideoId, video.title, "description_chapters",
+    (video.description ?? "").slice(0, 100),
+    chapters.slice(0, 200),
+  );
+
+  let pushed = false;
+  if (pushToAPI && video.channelId) {
+    pushed = await pushToYouTube(userId, video.channelId, youtubeVideoId, { description: newDesc });
+  }
+
+  logger.info(`[Optimizer] Chapters added to ${youtubeVideoId}${pushed ? " (pushed)" : " (logged)"}`);
+  return { success: true, chapters };
+}
+
+// ── Public: generate thumbnail refresh concept ────────────────────────────────
+
+export async function refreshThumbnailConcept(
+  userId: string,
+  youtubeVideoId: string,
+): Promise<{ concept: string | null; skipped?: string }> {
+  const [video] = await db.select()
+    .from(backCatalogVideos)
+    .where(and(
+      eq(backCatalogVideos.userId, userId),
+      eq(backCatalogVideos.youtubeVideoId, youtubeVideoId),
+    ))
+    .limit(1);
+
+  if (!video) return { concept: null, skipped: "not in back catalog" };
+
+  if (!tryAcquireAISlotNow()) return { concept: null, skipped: "AI slot unavailable" };
+
+  try {
+    const game = sanitizeForPrompt(video.gameName ?? "Gaming", 60);
+    const title = sanitizeForPrompt(video.title, 150);
+
+    const prompt = `Design a YouTube thumbnail concept for a gaming video.
+
+Title: "${title}"
+Game: ${game}
+Views: ${video.viewCount ?? 0}
+Current thumbnail low CTR: ${(video.viewCount ?? 0) < 1000 ? "yes — needs improvement" : "unknown"}
+
+Write a specific thumbnail design brief (3–5 sentences):
+- What image to use (screenshot, character, moment)
+- Text overlay (max 4 words)
+- Color scheme / border
+- Facial expression or emotion if applicable
+- Layout: where elements go
+
+Be specific and actionable. No generic advice.`;
+
+    const response = await callClaudeBackground({ prompt, model: CLAUDE_MODELS.haiku });
+    releaseAISlot();
+
+    if (!response?.content?.trim()) return { concept: null, skipped: "empty AI response" };
+
+    const concept = response.content.trim().slice(0, 600);
+    logger.info(`[Optimizer] Thumbnail concept generated for ${youtubeVideoId}`);
+    return { concept };
+  } catch (err: any) {
+    releaseAISlot();
+    logger.debug(`[Optimizer] Thumbnail concept failed: ${err.message?.slice(0, 100)}`);
+    return { concept: null, skipped: "AI error" };
+  }
+}
+
+// ── Public: queue a metadata update (with quota check) ───────────────────────
+
+export async function queueMetadataUpdate(
+  userId: string,
+  youtubeVideoId: string,
+): Promise<{ queued: boolean; reason?: string }> {
+  // Check quota before running
+  try {
+    const { isQuotaBreakerTripped } = await import("../services/youtube-quota-tracker");
+    if (isQuotaBreakerTripped()) {
+      return { queued: false, reason: "YouTube quota breaker active — deferred until reset" };
+    }
+  } catch { /* ok */ }
+
+  // Run the optimization (pushToAPI=true)
+  const result = await optimizeExistingVideoMetadata(userId, youtubeVideoId, true);
+  if (result.skipped) return { queued: false, reason: result.skipped };
+  return { queued: result.success, reason: result.changes.join(", ") };
+}
+
+// ── Public: audit monetization readiness via back catalog record ──────────────
+
+export async function auditVideoMonetizationReadiness(
+  userId: string,
+  youtubeVideoId: string,
+): Promise<{ status: string; issues: string[]; suggestions: string[] }> {
+  const { auditBackCatalogVideo } = await import("./youtube-monetization-readiness");
+  const report = await auditBackCatalogVideo(userId, youtubeVideoId);
+  return {
+    status: report?.status ?? "not_enough_info",
+    issues: report?.issues ?? [],
+    suggestions: report?.suggestions ?? [],
+  };
+}
+
+logger.debug("[VideoOptimizer] Module loaded");
