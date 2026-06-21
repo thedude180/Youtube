@@ -9975,3 +9975,15 @@ export const oauthNonces = pgTable("oauth_nonces", {
   expiresAt: timestamp("expires_at").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
 });
+
+export const shortSlotClaims = pgTable("short_slot_claims", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  windowKey: text("window_key").notNull(),
+  claimedSlot: timestamp("claimed_slot").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+}, (t) => [
+  uniqueIndex("ssc_user_window_uniq").on(t.userId, t.windowKey),
+  index("ssc_user_idx").on(t.userId),
+  index("ssc_expires_idx").on(t.expiresAt),
+]);

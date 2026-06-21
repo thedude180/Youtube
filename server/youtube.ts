@@ -1628,3 +1628,52 @@ function parseDuration(iso: string): number {
   const seconds = parseInt(match[3] || "0");
   return hours * 3600 + minutes * 60 + seconds;
 }
+
+export async function verifyUploadedToYouTube(
+  channelId: number,
+  youtubeVideoId: string,
+  { maxAttempts = 3, pollIntervalMs = 6_000 }: { maxAttempts?: number; pollIntervalMs?: number } = {},
+): Promise<{ verified: boolean; uploadStatus?: string; privacyStatus?: string; publishAt?: string | null }> {
+  let resolvedUserId: string | undefined;
+  try {
+    const [ch] = await db.select({ userId: channelsTable.userId })
+      .from(channelsTable).where(eq(channelsTable.id, channelId)).limit(1);
+    resolvedUserId = ch?.userId;
+  } catch { /* non-fatal */ }
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    await new Promise(r => setTimeout(r, pollIntervalMs));
+
+    try {
+      const { oauth2Client } = await getAuthenticatedClient(channelId);
+      const yt = google.youtube({ version: "v3", auth: oauth2Client });
+
+      const resp = await yt.videos.list({
+        part: ["status"],
+        id: [youtubeVideoId],
+      });
+
+      if (resolvedUserId) await trackQuotaUsage(resolvedUserId, "read").catch(() => {});
+
+      const item = resp.data.items?.[0];
+      if (item) {
+        return {
+          verified: true,
+          uploadStatus: (item.status as any)?.uploadStatus ?? undefined,
+          privacyStatus: item.status?.privacyStatus ?? undefined,
+          publishAt: (item.status as any)?.publishAt ?? null,
+        };
+      }
+
+      ytLogger.warn(
+        `[VerifyUpload] Attempt ${attempt}/${maxAttempts} — video ${youtubeVideoId} not yet visible via API`,
+      );
+    } catch (err: any) {
+      ytLogger.warn(
+        `[VerifyUpload] Attempt ${attempt}/${maxAttempts} error for ${youtubeVideoId}: ${err?.message?.slice(0, 120)}`,
+      );
+    }
+  }
+
+  return { verified: false };
+}
