@@ -51,6 +51,8 @@ import { startActionExecutor, stopActionExecutor } from "./services/action-execu
 import { startAbTestingEngine, stopAbTestingEngine } from "./services/ab-testing-engine.js";
 import { startRevenueAttributionEngine, stopRevenueAttributionEngine } from "./services/revenue-attribution-engine.js";
 import { startClipExtractionWorker, stopClipExtractionWorker } from "./services/clip-extraction-worker.js";
+import { startStrategyBrain, stopStrategyBrain } from "./services/strategy-brain.js";
+import { startOutcomeTracker, stopOutcomeTracker } from "./services/outcome-tracker.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isProd = process.env.NODE_ENV === "production";
@@ -120,6 +122,10 @@ async function main() {
   startRevenueAttributionEngine();
   startClipExtractionWorker();
 
+  // ASI-level closed loops: strategy synthesis + outcome measurement
+  startStrategyBrain();    // synthesises all signals → unified strategy every 4h
+  startOutcomeTracker();   // measures action impact 48h post-execution → updates engine accuracy
+
   // Re-trip the YouTube quota breaker if today's DB usage already exceeded the limit
   // (prevents a server restart from silently clearing a tripped breaker mid-day)
   import("./services/youtube-quota-tracker.js")
@@ -163,6 +169,8 @@ async function main() {
     stopAbTestingEngine();
     stopRevenueAttributionEngine();
     stopClipExtractionWorker();
+    stopStrategyBrain();
+    stopOutcomeTracker();
     server.close();
     await stopJobQueue();
     await pool.end();

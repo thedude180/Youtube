@@ -11093,3 +11093,75 @@ export const longformExtractionSegments = pgTable("longform_extraction_segments"
 export type LongformExtractionSegment = typeof longformExtractionSegments.$inferSelect;
 export const insertLongformExtractionSegmentSchema = createInsertSchema(longformExtractionSegments).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertLongformExtractionSegment = z.infer<typeof insertLongformExtractionSegmentSchema>;
+
+// ── Strategy State ─────────────────────────────────────────────────────────────
+// Single row per user. The Strategy Brain rewrites this every 4-6h after
+// synthesising signals from performance-feedback-loop, ab-testing-engine,
+// and revenue-attribution-engine. All content engines read from here.
+export const strategyState = pgTable("strategy_state", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  gameWeights: jsonb("game_weights").$type<Record<string, number>>().default({}),
+  optimalDurationMin: integer("optimal_duration_min").default(10),
+  optimalPublishHour: integer("optimal_publish_hour").default(15),
+  titleFormula: text("title_formula"),
+  thumbnailStyle: text("thumbnail_style"),
+  signalVersions: jsonb("signal_versions").$type<Record<string, number>>().default({}),
+  engineWeights: jsonb("engine_weights").$type<Record<string, number>>().default({}),
+  rawSignals: jsonb("raw_signals").$type<Record<string, any>>().default({}),
+  computedAt: timestamp("computed_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => [
+  uniqueIndex("ss_user_idx").on(t.userId),
+]);
+export type StrategyState = typeof strategyState.$inferSelect;
+export const insertStrategyStateSchema = createInsertSchema(strategyState).omit({ id: true, computedAt: true, updatedAt: true });
+export type InsertStrategyState = z.infer<typeof insertStrategyStateSchema>;
+
+// ── Action Outcomes ────────────────────────────────────────────────────────────
+// After every autonomous action, the outcome tracker measures real-world impact
+// 48h later and stores it here. Feeds back into engine accuracy tracking.
+export const actionOutcomes = pgTable("action_outcomes", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  actionId: integer("action_id").notNull(),
+  youtubeVideoId: text("youtube_video_id"),
+  baselineViews: integer("baseline_views"),
+  baselineCtr: real("baseline_ctr"),
+  baselineAvgViewDuration: real("baseline_avg_view_duration"),
+  outcomeViews: integer("outcome_views"),
+  outcomeCtr: real("outcome_ctr"),
+  outcomeAvgViewDuration: real("outcome_avg_view_duration"),
+  deltaViewsPct: real("delta_views_pct"),
+  deltaCtrPct: real("delta_ctr_pct"),
+  verdict: text("verdict"),
+  engineSource: text("engine_source"),
+  measureAfter: timestamp("measure_after").notNull(),
+  measuredAt: timestamp("measured_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("ao_user_idx").on(t.userId),
+  index("ao_action_idx").on(t.actionId),
+  index("ao_measure_idx").on(t.measureAfter),
+]);
+export type ActionOutcome = typeof actionOutcomes.$inferSelect;
+export const insertActionOutcomeSchema = createInsertSchema(actionOutcomes).omit({ id: true, createdAt: true });
+export type InsertActionOutcome = z.infer<typeof insertActionOutcomeSchema>;
+
+// ── Engine Accuracy ────────────────────────────────────────────────────────────
+// Tracks prediction accuracy per signal engine per user. Engines with higher
+// accuracy get more weight in the Strategy Brain's synthesis.
+export const engineAccuracy = pgTable("engine_accuracy", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  engineName: text("engine_name").notNull(),
+  totalPredictions: integer("total_predictions").notNull().default(0),
+  correctPredictions: integer("correct_predictions").notNull().default(0),
+  accuracyRate: real("accuracy_rate").notNull().default(0.5),
+  lastUpdatedAt: timestamp("last_updated_at").defaultNow(),
+}, (t) => [
+  uniqueIndex("ea_user_engine_idx").on(t.userId, t.engineName),
+]);
+export type EngineAccuracy = typeof engineAccuracy.$inferSelect;
+export const insertEngineAccuracySchema = createInsertSchema(engineAccuracy).omit({ id: true });
+export type InsertEngineAccuracy = z.infer<typeof insertEngineAccuracySchema>;
