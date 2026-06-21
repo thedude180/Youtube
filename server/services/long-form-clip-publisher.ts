@@ -413,11 +413,30 @@ export async function runLongFormClipPublisher(opts?: { bypassBreakerCheck?: boo
           }
           const jitYtId = resolvedYoutubeId;
           if (jitYtId && startSec >= 0 && durationSec >= MIN_LONG_FORM_SEC) {
+            // Require at least 1.5 GB free before JIT encode — a 15-min segment
+            // needs ~300 MB for raw + ~200 MB for encoded simultaneously.
+            let freeGB = 999;
+            try {
+              const { execFile } = await import("child_process");
+              const { promisify } = await import("util");
+              const execFileAsync = promisify(execFile);
+              const { stdout } = await execFileAsync("df", ["--output=avail", "-B1", "/"], { timeout: 5000 });
+              const lines = stdout.trim().split("\n");
+              freeGB = parseInt(lines[lines.length - 1].trim(), 10) / (1024 ** 3);
+            } catch { /* non-fatal — proceed */ }
+            if (freeGB < 1.5) {
+              logger.warn(`[LongFormPublisher] JIT encode skipped for item ${item.id} — only ${freeGB.toFixed(1)} GB free (need 1.5 GB)`);
+              await db.update(autopilotQueue)
+                .set({ status: "scheduled", errorMessage: null })
+                .where(eq(autopilotQueue.id, item.id));
+              skipped++;
+              continue;
+            }
             const runId = `lf_jit_${item.id}_${Date.now()}`;
             const tmpRaw = path.join(LONG_FORM_TEMP_DIR, `raw_${runId}.mp4`);
             const tmpEnc = path.join(LONG_FORM_TEMP_DIR, `enc_${runId}.mp4`);
             try {
-              logger.info(`[LongFormPublisher] JIT encoding item ${item.id} (${Math.round(durationSec / 60)}min from ytId=${jitYtId})`);
+              logger.info(`[LongFormPublisher] JIT encoding item ${item.id} (${Math.round(durationSec / 60)}min from ytId=${jitYtId}, ${freeGB.toFixed(1)}GB free)`);
               await jitDownloadSegment(jitYtId, startSec, startSec + durationSec, tmpRaw);
               if (!fs.existsSync(tmpRaw)) throw new Error("yt-dlp produced no output");
               await jitExtractSegment(tmpRaw, 0, durationSec, tmpEnc);

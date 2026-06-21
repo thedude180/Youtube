@@ -506,7 +506,7 @@ export default function TeamDashboard() {
             <div className="rounded-xl border border-border/30 bg-card/20 p-4" data-testid="card-monetization-missions">
               <h2 className="text-sm font-semibold text-foreground flex items-center gap-2 mb-3">
                 <TrendingUp className="h-4 w-4 text-amber-400" />
-                Monetization Readiness ({missions.readinessScore}%)
+                Monetization Readiness ({missions.readinessScore ?? 0}%)
               </h2>
               <div className="space-y-1.5">
                 {missions.missions.slice(0, 4).map((m: any) => (

@@ -56,6 +56,72 @@ const TASK_MAPPINGS: Record<string, TaskMapping> = {
   chat_moderation:        { provider: "claude", model: CLAUDE_MODELS.haiku,  maxTokens: 500,  temperature: 0.1, priority: "low" },
   shorts_analysis:        { provider: "claude", model: CLAUDE_MODELS.sonnet, maxTokens: 2000, temperature: 0.5, priority: "medium" },
   daily_briefing:         { provider: "claude", model: CLAUDE_MODELS.sonnet, maxTokens: 1000, temperature: 0.6, priority: "low" },
+
+  // SEO & content packaging — Sonnet for nuanced keyword/title intelligence
+  seo_optimize:           { provider: "claude", model: CLAUDE_MODELS.sonnet, maxTokens: 2048, temperature: 0.4, priority: "medium" },
+  full_seo_package:       { provider: "claude", model: CLAUDE_MODELS.sonnet, maxTokens: 4096, temperature: 0.4, priority: "high" },
+  content_brief:          { provider: "claude", model: CLAUDE_MODELS.sonnet, maxTokens: 2048, temperature: 0.5, priority: "medium" },
+
+  // Thumbnail — Sonnet for creative direction, mini for quick concepts
+  thumbnail_generate:     { provider: "claude", model: CLAUDE_MODELS.sonnet, maxTokens: 1024, temperature: 0.8, priority: "medium" },
+  thumbnail_concept:      { provider: "claude", model: CLAUDE_MODELS.sonnet, maxTokens: 1024, temperature: 0.8, priority: "medium" },
+  thumbnail_style:        { model: "gpt-4o-mini",                            maxTokens: 512,  temperature: 0.7, priority: "low" },
+
+  // Game detection & catalog — mini for speed, Sonnet for nuanced redetection
+  auto_game_detection:    { model: "gpt-4o-mini",                            maxTokens: 512,  temperature: 0.1, priority: "low" },
+  catalog_game_redetect:  { provider: "claude", model: CLAUDE_MODELS.sonnet, maxTokens: 1024, temperature: 0.2, priority: "medium" },
+  catalog_mining:         { provider: "claude", model: CLAUDE_MODELS.sonnet, maxTokens: 2048, temperature: 0.3, priority: "medium" },
+  catalog_improvement:    { provider: "claude", model: CLAUDE_MODELS.sonnet, maxTokens: 2048, temperature: 0.4, priority: "medium" },
+  catalog_opportunity:    { provider: "claude", model: CLAUDE_MODELS.sonnet, maxTokens: 2048, temperature: 0.5, priority: "medium" },
+  playlist_reorganize:    { provider: "claude", model: CLAUDE_MODELS.sonnet, maxTokens: 2048, temperature: 0.4, priority: "medium" },
+
+  // Video creation — Opus for full scripts, Sonnet for shorts strategy
+  full_shorts_strategy:   { provider: "claude", model: CLAUDE_MODELS.sonnet, maxTokens: 3000, temperature: 0.7, priority: "high" },
+  full_script_writing:    { provider: "claude", model: CLAUDE_MODELS.opus,   maxTokens: 6000, temperature: 0.9, priority: "high" },
+  "smart-edit":           { provider: "claude", model: CLAUDE_MODELS.sonnet, maxTokens: 2048, temperature: 0.5, priority: "medium" },
+
+  // Performance & audience analysis — Sonnet for deep pattern recognition
+  audience_analysis:      { provider: "claude", model: CLAUDE_MODELS.sonnet, maxTokens: 3000, temperature: 0.3, priority: "high" },
+  performance_analysis:   { provider: "claude", model: CLAUDE_MODELS.sonnet, maxTokens: 3000, temperature: 0.3, priority: "high" },
+  performance_attribution:{ provider: "claude", model: CLAUDE_MODELS.sonnet, maxTokens: 2048, temperature: 0.3, priority: "medium" },
+  cross_channel_analysis: { provider: "claude", model: CLAUDE_MODELS.sonnet, maxTokens: 3000, temperature: 0.3, priority: "high" },
+
+  // Deep strategic decisions — Opus: reasoning quality drives real revenue
+  competitive_intel:      { provider: "claude", model: CLAUDE_MODELS.opus,   maxTokens: 4096, temperature: 0.4, priority: "high" },
+  revenue_optimization:   { provider: "claude", model: CLAUDE_MODELS.opus,   maxTokens: 4096, temperature: 0.5, priority: "high" },
+  brand_partnership_outreach: { provider: "claude", model: CLAUDE_MODELS.opus, maxTokens: 2048, temperature: 0.6, priority: "high" },
+  flywheel_spin:          { provider: "claude", model: CLAUDE_MODELS.opus,   maxTokens: 4096, temperature: 0.6, priority: "high" },
+  strategy_scan:          { provider: "claude", model: CLAUDE_MODELS.opus,   maxTokens: 4096, temperature: 0.5, priority: "high" },
+  autonomous_full_optimize: { provider: "claude", model: CLAUDE_MODELS.opus, maxTokens: 6000, temperature: 0.6, priority: "critical" },
+  empire_intelligence:    { provider: "claude", model: CLAUDE_MODELS.opus,   maxTokens: 6000, temperature: 0.5, priority: "critical" },
+  learning:               { provider: "claude", model: CLAUDE_MODELS.opus,   maxTokens: 2048, temperature: 0.6, priority: "high" },
+
+  // Automation & community — Sonnet for nuanced judgment
+  autonomous_optimize:    { provider: "claude", model: CLAUDE_MODELS.sonnet, maxTokens: 3000, temperature: 0.5, priority: "high" },
+  community_management:   { provider: "claude", model: CLAUDE_MODELS.sonnet, maxTokens: 2048, temperature: 0.7, priority: "medium" },
+  social_media_management:{ provider: "claude", model: CLAUDE_MODELS.sonnet, maxTokens: 2048, temperature: 0.7, priority: "medium" },
+  content_learning:       { provider: "claude", model: CLAUDE_MODELS.sonnet, maxTokens: 2048, temperature: 0.4, priority: "medium" },
+  cross_propagation:      { provider: "claude", model: CLAUDE_MODELS.sonnet, maxTokens: 2048, temperature: 0.5, priority: "medium" },
+
+  // Self-improvement loop — Sonnet for reflection, Opus for goal/experiment design
+  self_reflection:        { provider: "claude", model: CLAUDE_MODELS.sonnet, maxTokens: 2048, temperature: 0.6, priority: "medium" },
+  curiosity_generation:   { provider: "claude", model: CLAUDE_MODELS.sonnet, maxTokens: 1024, temperature: 0.8, priority: "low" },
+  curiosity_pursuit:      { provider: "claude", model: CLAUDE_MODELS.sonnet, maxTokens: 2048, temperature: 0.7, priority: "medium" },
+  goal_setting:           { provider: "claude", model: CLAUDE_MODELS.opus,   maxTokens: 2048, temperature: 0.5, priority: "high" },
+  goal_review:            { provider: "claude", model: CLAUDE_MODELS.sonnet, maxTokens: 2048, temperature: 0.4, priority: "medium" },
+  experiment_design:      { provider: "claude", model: CLAUDE_MODELS.opus,   maxTokens: 3000, temperature: 0.5, priority: "high" },
+  prompt_evolution:       { provider: "claude", model: CLAUDE_MODELS.sonnet, maxTokens: 2048, temperature: 0.6, priority: "medium" },
+
+  // Memory & knowledge consolidation — Haiku: fast compression at high volume
+  memory_consolidation:   { provider: "claude", model: CLAUDE_MODELS.haiku,  maxTokens: 1024, temperature: 0.2, priority: "low" },
+  memory_compression:     { provider: "claude", model: CLAUDE_MODELS.haiku,  maxTokens: 1024, temperature: 0.2, priority: "low" },
+  knowledge_consolidation:{ provider: "claude", model: CLAUDE_MODELS.haiku,  maxTokens: 2048, temperature: 0.2, priority: "low" },
+  decision_summary:       { provider: "claude", model: CLAUDE_MODELS.haiku,  maxTokens: 512,  temperature: 0.2, priority: "low" },
+
+  // Channel setup — Sonnet for on-brand creative quality
+  profile_picture:        { provider: "claude", model: CLAUDE_MODELS.sonnet, maxTokens: 1024, temperature: 0.7, priority: "medium" },
+  banner:                 { provider: "claude", model: CLAUDE_MODELS.sonnet, maxTokens: 1024, temperature: 0.7, priority: "medium" },
+  about_section:          { provider: "claude", model: CLAUDE_MODELS.sonnet, maxTokens: 2048, temperature: 0.6, priority: "medium" },
 };
 
 const MODEL_PRICING: Record<string, { inputPer1k: number; outputPer1k: number }> = {

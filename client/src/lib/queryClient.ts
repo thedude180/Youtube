@@ -117,8 +117,7 @@ export function getQueryFn<T>({ on401: unauthorizedBehavior }: {
 export const queryClient = new QueryClient({
   queryCache: new QueryCache({
     onError: (error, query) => {
-      const key = Array.isArray(query.queryKey) ? query.queryKey[0] : query.queryKey;
-      if (error.message?.startsWith("401:") && key === "/api/auth/user") {
+      if (error.message?.startsWith("401:")) {
         handleSessionExpired();
       }
     },

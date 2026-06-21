@@ -338,6 +338,28 @@ export async function getQuotaForAllUsers(): Promise<Array<{ userId: string; rem
 }
 
 let _globalQuotaTripDate: string | null = null;
+let _breakerInitialized = false;
+
+// Re-trips the global breaker on startup if today's DB usage already exceeded the limit.
+// Prevents a server restart from silently clearing a tripped breaker mid-day.
+export async function initQuotaBreakerFromDb(): Promise<void> {
+  if (_breakerInitialized) return;
+  _breakerInitialized = true;
+  try {
+    const today = getPacificDate();
+    const records = await db.select().from(youtubeQuotaUsage)
+      .where(eq(youtubeQuotaUsage.date, today));
+    for (const r of records) {
+      if (r.unitsUsed >= r.quotaLimit) {
+        _globalQuotaTripDate = today;
+        logger.warn(`[QuotaBreaker] Breaker re-tripped from DB on startup — user ${r.userId} used ${r.unitsUsed}/${r.quotaLimit} units today`);
+        break;
+      }
+    }
+  } catch (err) {
+    logger.warn("[QuotaBreaker] Could not initialize breaker from DB:", err);
+  }
+}
 
 export function tripGlobalQuotaBreaker(): void {
   const today = getPacificDate();

@@ -48,8 +48,8 @@ export class AuthService {
     const token = crypto.randomBytes(32).toString("hex");
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
     await authRepo.createPasswordReset(user.id, token, expiresAt);
-    // TODO: wire email delivery — for now token is returned in dev logs
-    console.log(`[AUTH] Password reset token for ${email}: ${token}`);
+    // Token is intentionally not logged — it is a credential.
+    // Wire email delivery here when an email provider is configured.
   }
 
   async confirmPasswordReset(token: string, newPassword: string): Promise<void> {

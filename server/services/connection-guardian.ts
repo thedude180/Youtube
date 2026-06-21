@@ -90,8 +90,12 @@ async function verifyConnectionAlive(platform: string, accessToken: string): Pro
   }
 }
 
+const refreshingChannelIds = new Set<number>();
+
 async function tryRefreshSingleToken(ch: typeof channels.$inferSelect): Promise<boolean> {
   if (!ch.refreshToken) return false;
+  if (refreshingChannelIds.has(ch.id)) return false;
+  refreshingChannelIds.add(ch.id);
   try {
     const { refreshSingleChannel } = await import("../token-refresh");
     const result = await refreshSingleChannel(ch);
@@ -108,6 +112,8 @@ async function tryRefreshSingleToken(ch: typeof channels.$inferSelect): Promise<
   } catch (err) {
     logger.error(`[ConnectionGuardian] Refresh attempt failed for ${ch.platform}:`, err);
     return false;
+  } finally {
+    refreshingChannelIds.delete(ch.id);
   }
 }
 

@@ -244,8 +244,9 @@ function resolveYtdlp(): string {
   return probed !== "yt-dlp" ? probed : ytDlpBin;
 }
 
-let isVaultRunning = false;
-export function isVaultDownloading(): boolean { return isVaultRunning; }
+const vaultRunningByUser = new Map<string, boolean>();
+// Returns true if any user has a download in progress (used for memory gate checks)
+export function isVaultDownloading(): boolean { return vaultRunningByUser.size > 0; }
 
 const GAME_PATTERNS: Array<[RegExp, string]> = [
   [/assassin'?s?\s*creed\s*valhalla\s*(?:dawn\s*of\s*ragnar[öo]k)/i, "AC Valhalla: Dawn of Ragnarok"],
@@ -470,7 +471,7 @@ async function scrapeTab(tabUrl: string, contentType: "video" | "short" | "strea
     // memory is below 15%, skip the scrape to avoid OOM-killing either process.
     // The scrape will re-run on the next scheduled cycle (typically minutes away).
     const osFreeRatio = os.freemem() / os.totalmem();
-    if (isVaultRunning && osFreeRatio < 0.15) {
+    if (isVaultDownloading() && osFreeRatio < 0.15) {
       logger.warn(`[Vault] Skipping ${contentType} scrape — download in progress and OS free memory only ${Math.round(osFreeRatio * 100)}%`);
       return videos;
     }
@@ -918,10 +919,17 @@ async function downloadViaInnerTube(youtubeId: string, outputPath: string, acces
         let errBody = "";
         try { const t = await playerRes.text(); errBody = t.substring(0, 200); } catch {}
         logger.warn(`[Vault] InnerTube ${client.name}: HTTP ${playerRes.status} for ${youtubeId} — ${errBody}`);
-        // HTTP 400 often means the Bearer token is expired (short-lived access tokens).
-        // Retry this client without the Authorization header — public content is
-        // accessible unauthenticated and YouTube returns 200 in that case.
-        if (playerRes.status === 400) {
+
+        // 429 — InnerTube rate-limited: stop trying all clients for this video, let it retry next cycle.
+        if (playerRes.status === 429) {
+          logger.warn(`[Vault] InnerTube rate-limited (429) for ${youtubeId} — skipping remaining clients`);
+          break;
+        }
+
+        // 403 — could be regional block, age-gate, or API quota. Try unauthenticated before giving up.
+        // 400 — usually means the Bearer token is expired (short-lived access tokens).
+        // Both cases: retry without the Authorization header since public content is accessible unauthenticated.
+        if (playerRes.status === 400 || playerRes.status === 403) {
           try {
             const unauthRes = await fetch("https://www.youtube.com/youtubei/v1/player", {
               method: "POST",
@@ -935,10 +943,9 @@ async function downloadViaInnerTube(youtubeId: string, outputPath: string, acces
               body: JSON.stringify(body),
             });
             if (unauthRes.ok) {
-              logger.info(`[Vault] InnerTube ${client.name}: unauth fallback succeeded for ${youtubeId}`);
+              logger.info(`[Vault] InnerTube ${client.name}: unauth fallback succeeded for ${youtubeId} (was ${playerRes.status})`);
               const unauthData = await unauthRes.json() as Record<string, any>;
               if (unauthData?.streamingData) {
-                // Replace playerRes data and continue processing below
                 Object.assign(playerRes, { _unauthData: unauthData });
               }
             }
@@ -1394,12 +1401,12 @@ async function recoverBotDetectedEntries(userId: string, accessToken: string): P
 }
 
 export async function processVaultDownloads(userId: string): Promise<void> {
-  if (isVaultRunning) {
-    logger.info("[Vault] Download processor already running — skipping");
+  if (vaultRunningByUser.get(userId)) {
+    logger.info("[Vault] Download processor already running for this user — skipping");
     return;
   }
 
-  isVaultRunning = true;
+  vaultRunningByUser.set(userId, true);
   logger.info("[Vault] Starting background download processor...");
 
   // Fetch YouTube OAuth token once for the whole session
@@ -1529,7 +1536,7 @@ export async function processVaultDownloads(userId: string): Promise<void> {
       await new Promise(resolve => setTimeout(resolve, humanVideoDelay()));
     }
   } finally {
-    isVaultRunning = false;
+    vaultRunningByUser.delete(userId);
     logger.info("[Vault] Download processor stopped");
   }
 }
@@ -1597,7 +1604,7 @@ export async function getVaultStats(userId: string): Promise<{
     totalSizeBytes,
     totalSizeMB: Math.round(totalSizeBytes / 1024 / 1024),
     channelTotal: totalIndexed,
-    isRunning: isVaultRunning,
+    isRunning: vaultRunningByUser.get(userId) === true,
     freeSpaceGB: Math.round(freeSpaceGB * 10) / 10,
     vods,
     shorts,
@@ -1735,7 +1742,7 @@ export async function archiveAllToCloud(userId: string): Promise<{ localUploaded
   // Use processVaultDownloads directly — NOT startVaultSync — to avoid re-running the
   // channel scrape (which has already just completed a moment ago inside VaultSync).
   const stats = await getVaultStats(userId);
-  if (stats.pending > 0 && !isVaultRunning) {
+  if (stats.pending > 0 && !vaultRunningByUser.get(userId)) {
     processVaultDownloads(userId).catch(() => {});
   }
 

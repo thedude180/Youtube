@@ -268,12 +268,20 @@ async function syncYouTubePublicCatalog(userId: string, channel: any): Promise<{
   }
 }
 
+const syncInProgress = new Set<string>();
+
 export async function syncFullCatalog(userId: string): Promise<{
   total: number;
   newLinks: number;
   updated: number;
   errors: number;
 }> {
+  if (syncInProgress.has(userId)) {
+    logger.info(`[${userId}] Catalog sync already in progress — skipping duplicate call`);
+    return { total: 0, newLinks: 0, updated: 0, errors: 0 };
+  }
+  syncInProgress.add(userId);
+  try {
   const userChannels = await storage.getChannelsByUser(userId);
   const ytChannel = userChannels.find((c: any) => c.platform === "youtube" && c.accessToken);
   if (!ytChannel) {
@@ -438,6 +446,9 @@ export async function syncFullCatalog(userId: string): Promise<{
 
   logger.info(`[${userId}] Catalog sync complete: ${newLinks} new, ${updated} updated, ${errors} errors (${allVideoIds.length} total)`);
   return { total: allVideoIds.length, newLinks, updated, errors };
+  } finally {
+    syncInProgress.delete(userId);
+  }
 }
 
 export async function processUnprocessedCatalog(userId: string): Promise<{

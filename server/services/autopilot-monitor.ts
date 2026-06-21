@@ -280,7 +280,7 @@ const systemChecks: SystemCheck[] = [
     // connected" / "Channel not connected or missing access token", and the
     // user was never told. The autopilot path only updates the queue row; no
     // notification was ever raised. This check surfaces those failures.
-    name: "platform_connections",
+    name: "autopilot_queue_blocked",
     check: async (userId) => {
       try {
         const since = new Date(Date.now() - 24 * 60 * 60 * 1000);

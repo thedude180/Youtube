@@ -93,11 +93,6 @@ export async function notifyUser(payload: NotificationPayload): Promise<{ email:
       return result;
     }
 
-    const isConnectionLoss = payload.category === "connection_severed" || payload.category === "platform_disconnected" || payload.category === "platform_connections";
-    if (isConnectionLoss) {
-      return result;
-    }
-
     if (payload.category && isRateLimited(payload.userId, payload.category)) {
       return result;
     }

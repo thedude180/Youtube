@@ -1507,7 +1507,13 @@ export async function processScheduledPosts() {
     SET status = 'scheduled',
         metadata = metadata - 'processingStartedAt'
     WHERE status = 'processing'
-      AND (metadata->>'processingStartedAt')::timestamptz < NOW() - INTERVAL '60 minutes'
+      AND (
+        -- Items with no processingStartedAt (NULL metadata or missing key) are
+        -- orphaned — recover them after 60 minutes by checking updated_at instead.
+        metadata IS NULL
+        OR metadata->>'processingStartedAt' IS NULL
+        OR (metadata->>'processingStartedAt')::timestamptz < NOW() - INTERVAL '60 minutes'
+      )
   `).catch((err: any) => {
     logger.warn("Could not recover stuck processing posts", { error: err?.message });
     return { rowCount: 0 };

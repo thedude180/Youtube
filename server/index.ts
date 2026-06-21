@@ -108,6 +108,12 @@ async function main() {
   startStreamWatcher();
   startAutopilotScheduler();
 
+  // Re-trip the YouTube quota breaker if today's DB usage already exceeded the limit
+  // (prevents a server restart from silently clearing a tripped breaker mid-day)
+  import("./services/youtube-quota-tracker.js")
+    .then(m => m.initQuotaBreakerFromDb())
+    .catch(() => {});
+
   // 8. Static / SPA serving
   if (isProd) {
     const distPath = path.join(__dirname, "..", "dist", "public");

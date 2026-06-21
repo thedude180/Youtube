@@ -1151,7 +1151,8 @@ export class DatabaseStorage implements IStorage {
           status: "indexed",
         });
       }
-    } catch (e) {
+    } catch (e: any) {
+      console.error("[storage.createContentClip] vault backup failed:", e?.message ?? e);
     }
     return newClip;
   }
@@ -1482,9 +1483,12 @@ export class DatabaseStorage implements IStorage {
       )
     ))[0].count;
 
-    const complianceAll = await db.select().from(complianceRecords).where(inArray(complianceRecords.channelId, userChannelIds));
-    const passCount = complianceAll.filter(c => c.status === 'pass').length;
-    const complianceScore = complianceAll.length > 0 ? Math.round((passCount / complianceAll.length) * 100) : 100;
+    const [complianceCounts] = await db.select({
+      total: sql<number>`count(*)::int`,
+      passed: sql<number>`count(*) filter (where status = 'pass')::int`,
+    }).from(complianceRecords).where(inArray(complianceRecords.channelId, userChannelIds));
+    const complianceScore = (complianceCounts?.total ?? 0) > 0
+      ? Math.round(((complianceCounts?.passed ?? 0) / complianceCounts.total) * 100) : 100;
 
     const scheduled = await db.select().from(videos).where(
       and(eq(videos.status, 'scheduled'), inArray(videos.channelId, userChannelIds))
