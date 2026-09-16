@@ -58,6 +58,17 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isProd = process.env.NODE_ENV === "production";
 const PORT = Number(process.env.PORT ?? 5000);
 
+// Without these, any single unhandled error anywhere in the app (a flaky
+// Stripe/API call, a stray bug in a background service) kills the whole
+// process and Replit's supervisor restarts it — the "crashing and
+// recovering" loop. Log and keep serving instead of dying.
+process.on("uncaughtException", (err) => {
+  log.error("uncaughtException (process kept alive)", err);
+});
+process.on("unhandledRejection", (reason) => {
+  log.error("unhandledRejection (process kept alive)", reason);
+});
+
 async function main() {
   // 1. Start job queue
   await startJobQueue();
